@@ -532,6 +532,10 @@ function create_metric_content($cfo, $title, $ckan_id, $organizations, $parent_n
             $url = (get_option('ckan_access_pt') != '') ? get_option('ckan_access_pt') : '//catalog.data.gov/';
             $url .= "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset+AND+metadata_created:$range&rows=1";
 
+            if (false === stripos($url, 'http')) {
+                $url = 'http:' . $url;
+            }
+
             $response = wp_remote_get($url);
             $body = json_decode(wp_remote_retrieve_body($response), true);
 
