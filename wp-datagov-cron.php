@@ -7,10 +7,7 @@ require_once ('../../../wp/wp-blog-header.php');
 if (current_user_can( 'manage_options' )) {
     ignore_user_abort(true);
 
-    if (isset($_GET['cleaner'])) {
-        define('DELETE_DUPLICATE_META', true);
-        define('METRICS_CLEANER', true);
-    }
+//    define('DELETE_DUPLICATE_META', true);
 
     get_ckan_metric_info();
     echo 'done';

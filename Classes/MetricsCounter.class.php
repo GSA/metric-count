@@ -131,9 +131,7 @@ class MetricsCounter
      */
     public function updateMetrics()
     {
-        if (defined('METRICS_CLEANER') && METRICS_CLEANER) {
-            $this->cleaner();
-        }
+        $this->cleaner();
 
 //    Get latest taxonomies from http://idm.data.gov/fed_agency.json
         $taxonomies = $this->ckan_metric_get_taxonomies();
@@ -491,7 +489,7 @@ class MetricsCounter
                     INNER JOIN wp_postmeta pm ON pm.post_id = p.id
                         AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
                     INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                        AND pm2.meta_key = 'is_sub_organization' AND pm2.meta_value = 'true'
+                        AND pm2.meta_key = 'is_sub_organization'
                        WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
                    "
             );
@@ -502,7 +500,7 @@ class MetricsCounter
                     INNER JOIN wp_postmeta pm ON pm.post_id = p.id
                         AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
                     INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                        AND pm2.meta_key = 'is_root_organization' AND pm2.meta_value = 'true'
+                        AND pm2.meta_key = 'is_root_organization'
                        WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
                    "
             );
@@ -566,9 +564,9 @@ class MetricsCounter
         );
 
         if (!$sub_agency) {
-            $this->update_post_meta($content_id, 'is_root_organization', true);
+            $this->update_post_meta($content_id, 'is_root_organization', 1);
         } else {
-            $this->update_post_meta($content_id, 'is_sub_organization', true);
+            $this->update_post_meta($content_id, 'is_sub_organization', 1);
         }
 
         if ($parent_node != 0) {
@@ -606,9 +604,9 @@ class MetricsCounter
      */
     private function update_post_meta($post_id, $meta_key, $meta_value)
     {
-        if (defined('DELETE_DUPLICATE_META') && DELETE_DUPLICATE_META) {
-            delete_post_meta($post_id, $meta_key);
-        }
+//        if (defined('DELETE_DUPLICATE_META') && DELETE_DUPLICATE_META) {
+//            delete_post_meta($post_id, $meta_key);
+//        }
         update_post_meta($post_id, $meta_key, $meta_value);
     }
 
@@ -641,10 +639,11 @@ class MetricsCounter
         }
 
         $content_id = $this->wpdb->get_var(
-            "SELECT id FROM `wp_posts` p
-                               INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                               WHERE post_title = '" . $publisherTitle . "' AND post_type = 'metric_organization'
-                   AND meta_key = 'metric_department_lvl' AND meta_value = '$parent_nid'"
+            "SELECT p.id FROM `wp_posts` p
+                INNER JOIN wp_postmeta pm
+                    ON pm.post_id = p.id AND pm.meta_key = 'metric_department_lvl' AND pm.meta_value = '$parent_nid'
+                WHERE p.post_title = '" . $publisherTitle . "' AND p.post_type = 'metric_organization'
+                "
         );
 
         if (!$content_id) {
@@ -656,12 +655,11 @@ class MetricsCounter
             );
 
             $content_id = wp_insert_post($my_post);
+
+            $this->update_post_meta($content_id, 'metric_department_lvl', $parent_nid);
         }
 
         $this->update_post_meta($content_id, 'metric_count', $count);
-
-        $this->update_post_meta($content_id, 'metric_department_lvl', $parent_nid);
-
 
 //            http://catalog.data.gov/dataset?publisher=United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department
         $this->update_post_meta(
