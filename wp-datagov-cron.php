@@ -6,12 +6,14 @@ require_once ('../../../wp/wp-blog-header.php');
 
 if (current_user_can( 'manage_options' )) {
     ignore_user_abort(true);
-    define('DELETE_DUPLICATE_META', true);
 
     if (isset($_GET['cleaner'])) {
+        define('DELETE_DUPLICATE_META', true);
         define('METRICS_CLEANER', true);
     }
 
     get_ckan_metric_info();
+    echo 'done';
+} else {
+    echo 'Permission denied';
 }
-?>done

@@ -55,6 +55,16 @@ class MetricsCounter
     private $results = array();
 
     /**
+     * @var WP_DB
+     */
+    private $wpdb;
+
+    /**
+     * @var array
+     */
+    private $counts = array();
+
+    /**
      *
      */
     function __construct()
@@ -71,6 +81,10 @@ class MetricsCounter
         $this->ckanApiUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanApiUrl);
 
         $this->ckan_no_cache_ip = get_option('ckan_no_cache_ip') ? get_option('ckan_no_cache_ip') : '216.128.241.210';
+
+        global $wpdb;
+//        hate this sh*t
+        $this->wpdb = $wpdb;
 
         // Create cURL object.
         $this->ch = curl_init();
@@ -112,13 +126,6 @@ class MetricsCounter
         );
     }
 
-    private function cleaner()
-    {
-        global $wpdb;
-        $wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
-        $wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
-    }
-
     /**
      *
      */
@@ -146,41 +153,35 @@ class MetricsCounter
             $solr_terms = join('+OR+', $RootOrganization->getTerms());
             $solr_query = "organization:({$solr_terms})";
 
-//        wtf?
+            /**
+             * Count statistics and create data for ROOT organization
+             */
             $parent_nid = $this->create_metric_content(
                 $RootOrganization->getIsCfo(),
                 $RootOrganization->getTitle(),
                 $RootOrganization->getTerm(),
-                $solr_query
-            );
-
-            $this->create_metric_content(
-                $RootOrganization->getIsCfo(),
-                $RootOrganization->getTitle(),
-                $RootOrganization->getTerm(),
                 $solr_query,
-                $parent_nid,
+                0,
                 1,
                 '',
                 0
             );
 
-            $this->create_metric_content_by_publishers(
+            /**
+             * Check if there are some Department/Agency level datasets
+             * without publisher!
+             */
+            $this->create_metric_content_department_level_without_publisher(
                 $RootOrganization,
                 $parent_nid
             );
 
-//        wtf ?
-            $this->create_metric_content(
-                $RootOrganization->getIsCfo(),
-                'Department/Agency Level',
-                $RootOrganization->getTerm(),
-                'organization:' . urlencode($RootOrganization->getTerm()),
-                $parent_nid,
-                0,
-                $RootOrganization->getTitle(),
-                0,
-                1
+            /**
+             * Get publishers by organization
+             */
+            $this->create_metric_content_by_publishers(
+                $RootOrganization,
+                $parent_nid
             );
 
 //        wtf children?
@@ -204,10 +205,19 @@ class MetricsCounter
 
         }
 
-//        $this->write_metrics_csv_and_xls();
+        $this->write_metrics_csv_and_xls();
 
         echo 'get count: ' . $this->stats . ' times<br />';
         echo 'get count by month: ' . $this->statsByMonth . ' times<br />';
+    }
+
+    /**
+     *
+     */
+    private function cleaner()
+    {
+        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
+        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
     }
 
     /**
@@ -236,7 +246,14 @@ class MetricsCounter
 
         $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
 
-        return $this->curl_make_request('GET', $url);
+        try {
+            $result = $this->curl_make_request('GET', $url);
+        } catch (Exception $ex) {
+            echo $ex->getMessage() . '<br />';
+            $result = false;
+        }
+
+        return $result;
     }
 
     /**
@@ -391,10 +408,6 @@ class MetricsCounter
                 $last_entry = $body['result']['results'][0]['metadata_modified'];
 //        2013-12-12T07:39:40.341322
 
-//            echo '---'.PHP_EOL;
-//            echo $url.PHP_EOL.PHP_EOL;
-//            echo 'metadata_modified '.$last_entry.PHP_EOL;
-
                 $last_entry = substr($last_entry, 0, 10);
 //        2013-12-12
 
@@ -407,7 +420,7 @@ class MetricsCounter
 
         $metric_sync_timestamp = time();
 
-        if (!$sub_agency && $cfo == 'Y' && $title != 'Department/Agency Level') {
+        if (!$sub_agency && $cfo == 'Y') {
             //get list of last 12 months
             $month = date('m');
 
@@ -471,179 +484,116 @@ class MetricsCounter
             $lastYearRange = $range;
         }
 
-        $content_id = get_page_by_title($title, OBJECT, 'metric_organization')->ID;
-
         if ($sub_agency) {
-            global $wpdb;
-            $myrows     = $wpdb->get_var(
+//            SUB Agency
+            $content_id = $this->wpdb->get_var(
                 "SELECT id FROM `wp_posts` p
-                                   INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                                                           WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
-                   AND meta_key = 'ckan_unique_id' AND meta_value = '" . $ckan_id . "'"
+                    INNER JOIN wp_postmeta pm ON pm.post_id = p.id
+                        AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
+                    INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
+                        AND pm2.meta_key = 'is_sub_organization' AND pm2.meta_value = 'true'
+                       WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
+                   "
             );
-            $content_id = $myrows;
+        } else {
+//            ROOT Agency
+            $content_id = $this->wpdb->get_var(
+                "SELECT id FROM `wp_posts` p
+                    INNER JOIN wp_postmeta pm ON pm.post_id = p.id
+                        AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
+                    INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
+                        AND pm2.meta_key = 'is_root_organization' AND pm2.meta_value = 'true'
+                       WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
+                   "
+            );
+
+            $this->counts[trim($title)] = $count;
         }
 
-        if ($title == 'Department/Agency Level') {
-            global $wpdb;
-            $myrows = $wpdb->get_var(
-                "SELECT id FROM `wp_posts` p
-                                   INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                                   WHERE post_title = 'Department/Agency Level' AND post_type = 'metric_organization'
-                                   AND meta_key = 'parent_organization' AND meta_value = " . $parent_node
-            );
-
-            $content_id = $myrows;
-        }
-
-        list($Y, $m, $d) = explode('-', $last_entry);
-        $last_entry = "$m/$d/$Y";
-
-        if (sizeof($content_id) == 0) {
-
+//        create a new agency in DB, if not found yet
+        if (!$content_id) {
             $my_post = array(
                 'post_title'  => $title,
                 'post_status' => 'publish',
                 'post_type'   => 'metric_organization'
             );
 
-            $new_post_id = wp_insert_post($my_post);
+            $content_id = wp_insert_post($my_post);
+        }
 
-            $this->update_post_meta($new_post_id, 'metric_count', $count);
+        list($Y, $m, $d) = explode('-', $last_entry);
+        $last_entry = "$m/$d/$Y";
 
+        $this->update_post_meta($content_id, 'metric_count', $count);
 
-            if (!$sub_agency && $cfo == 'Y' && $title != 'Department/Agency Level') {
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta($new_post_id, 'month_' . $i . '_dataset_count', $dataset_count[$i]);
-                }
+        if (!$sub_agency && $cfo == 'Y') {
+            for ($i = 1; $i < 13; $i++) {
+                $this->update_post_meta($content_id, 'month_' . $i . '_dataset_count', $dataset_count[$i]);
+            }
 
-                $this->update_post_meta($new_post_id, 'last_year_dataset_count', $lastYearCount);
+            $this->update_post_meta($content_id, 'last_year_dataset_count', $lastYearCount);
 
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta(
-                        $new_post_id,
-                        'month_' . $i . '_dataset_url',
-                        $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $dataset_range[$i]
-                    );
-                }
-
+            for ($i = 1; $i < 13; $i++) {
                 $this->update_post_meta(
-                    $new_post_id,
-                    'last_year_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $lastYearRange
+                    $content_id,
+                    'month_' . $i . '_dataset_url',
+                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $dataset_range[$i]
                 );
-
             }
-
-            if ($cfo == 'Y') {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Federal');
-            } else {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Other');
-            }
-
-            $this->update_post_meta($new_post_id, 'ckan_unique_id', $ckan_id);
-            $this->update_post_meta($new_post_id, 'metric_last_entry', $last_entry);
-            $this->update_post_meta($new_post_id, 'metric_sync_timestamp', $metric_sync_timestamp);
 
             $this->update_post_meta(
-                $new_post_id,
-                'metric_url',
-                $this->ckanApiUrl . 'dataset?q=' . $organizations
+                $content_id,
+                'last_year_dataset_url',
+                $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $lastYearRange
             );
 
+        }
 
-            if ($parent_node != 0) {
-                $this->update_post_meta($new_post_id, 'parent_organization', $parent_node);
-            }
-
-            if ($agency_level != 0) {
-                $this->update_post_meta($new_post_id, 'parent_agency', 1);
-            }
-
-            $flag = false;
-            if ($count > 0) {
-                if ($export != 0) {
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-
-                if ($parent_node == 0 && $flag == false) {
-                    $parent_name = $title;
-                    $title       = '';
-
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-            }
+        if ($cfo == 'Y') {
+            $this->update_post_meta($content_id, 'metric_sector', 'Federal');
         } else {
-            $new_post_id = $content_id;
-            $my_post     = array(
-                'ID'          => $new_post_id,
-                'post_status' => 'publish',
-            );
+            $this->update_post_meta($content_id, 'metric_sector', 'Other');
+        }
 
-            wp_update_post($my_post);
-            $this->update_post_meta($new_post_id, 'metric_count', $count);
-            $this->update_post_meta($new_post_id, 'ckan_unique_id', $ckan_id);
+        $this->update_post_meta($content_id, 'ckan_unique_id', $ckan_id);
+        $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
+        $this->update_post_meta($content_id, 'metric_sync_timestamp', $metric_sync_timestamp);
 
-            if (!$sub_agency && $cfo == 'Y' && $title != 'Department/Agency Level') {
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta($new_post_id, 'month_' . $i . '_dataset_count', $dataset_count[$i]);
-                }
+        $this->update_post_meta(
+            $content_id,
+            'metric_url',
+            $this->ckanApiUrl . 'dataset?q=' . $organizations
+        );
 
-                $this->update_post_meta($new_post_id, 'last_year_dataset_count', $lastYearCount);
+        if (!$sub_agency) {
+            $this->update_post_meta($content_id, 'is_root_organization', true);
+        } else {
+            $this->update_post_meta($content_id, 'is_sub_organization', true);
+        }
 
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta(
-                        $new_post_id,
-                        'month_' . $i . '_dataset_url',
-                        $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $dataset_range[$i]
-                    );
-                }
+        if ($parent_node != 0) {
+            $this->update_post_meta($content_id, 'parent_organization', $parent_node);
+        }
 
-                $this->update_post_meta(
-                    $new_post_id,
-                    'last_year_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $lastYearRange
-                );
+        if ($agency_level != 0) {
+            $this->update_post_meta($content_id, 'parent_agency', 1);
+        }
+
+        $flag = false;
+        if ($count > 0) {
+            if ($export != 0) {
+                $this->results[] = array($parent_name, $title, $count, $last_entry);
             }
 
-            if ($cfo == 'Y') {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Federal');
-            } else {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Other');
-            }
+            if ($parent_node == 0 && $flag == false) {
+                $parent_name = $title;
+                $title       = '';
 
-            $this->update_post_meta($new_post_id, 'metric_last_entry', $last_entry);
-            $this->update_post_meta($new_post_id, 'metric_sync_timestamp', $metric_sync_timestamp);
-            $this->update_post_meta(
-                $new_post_id,
-                'metric_url',
-                $this->ckanApiUrl . 'dataset?q=' . $organizations
-            );
-
-            if ($parent_node != 0) {
-                $this->update_post_meta($new_post_id, 'parent_organization', $parent_node);
-            }
-
-            if ($agency_level != 0) {
-                $this->update_post_meta($new_post_id, 'parent_agency', 1);
-            }
-
-            $flag = false;
-            if ($count > 0) {
-                if ($export != 0) {
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-
-                if ($parent_node == 0 && $flag == false) {
-                    $parent_name = $title;
-                    $title       = '';
-
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
+                $this->results[] = array($parent_name, $title, $count, $last_entry);
             }
         }
 
-        return $new_post_id;
+        return $content_id;
     }
 
     /**
@@ -665,14 +615,94 @@ class MetricsCounter
     /**
      * @param MetricsTaxonomy $RootOrganization
      * @param                 $parent_nid
+     */
+    private function create_metric_content_department_level_without_publisher($RootOrganization, $parent_nid)
+    {
+        $publisherTitle = '    Department/Agency level/No publisher';
+
+//        https://catalog.data.gov/api/3/action/package_search?q=organization:(gsa-gov)+AND+type:dataset+AND+-extras_publisher:*&sort=metadata_modified+desc&rows=1
+        $ckan_organization = 'organization:' . urlencode(
+                $RootOrganization->getTerm()
+            ) . '+AND+type:dataset+AND+-extras_publisher:*';
+        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&sort=metadata_modified+desc&rows=1";
+
+        $this->stats++;
+
+        $response = $this->curl_get($url);
+        $body     = json_decode($response, true);
+
+        if (!isset($body['result']['count']) || !($count = $body['result']['count'])) {
+            return;
+        }
+
+//        skip if it would be the one sub-agency
+        if ($count == $this->counts[trim($RootOrganization->getTitle())]) {
+            return;
+        }
+
+        $content_id = $this->wpdb->get_var(
+            "SELECT id FROM `wp_posts` p
+                               INNER JOIN wp_postmeta pm ON pm.post_id = p.id
+                               WHERE post_title = '" . $publisherTitle . "' AND post_type = 'metric_organization'
+                   AND meta_key = 'metric_department_lvl' AND meta_value = '$parent_nid'"
+        );
+
+        if (!$content_id) {
+
+            $my_post = array(
+                'post_title'  => $publisherTitle,
+                'post_status' => 'publish',
+                'post_type'   => 'metric_organization'
+            );
+
+            $content_id = wp_insert_post($my_post);
+        }
+
+        $this->update_post_meta($content_id, 'metric_count', $count);
+
+        $this->update_post_meta($content_id, 'metric_department_lvl', $parent_nid);
+
+
+//            http://catalog.data.gov/dataset?publisher=United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department
+        $this->update_post_meta(
+            $content_id,
+            'metric_url',
+            $this->ckanApiUrl . "dataset?q={$ckan_organization}"
+        );
+
+        if ('Y' == $RootOrganization->getIsCfo()) {
+            $this->update_post_meta($content_id, 'metric_sector', 'Federal');
+        } else {
+            $this->update_post_meta($content_id, 'metric_sector', 'Other');
+        }
+
+        $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
+
+        $last_entry = '-';
+        if (isset($body['result']) && isset($body['result']['results'])) {
+            $last_entry = $body['result']['results'][0]['metadata_modified'];
+            $last_entry = substr($last_entry, 0, 10);
+
+            list($Y, $m, $d) = explode('-', $last_entry);
+            $last_entry = "$m/$d/$Y";
+
+            $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
+        }
+
+        $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $count, $last_entry);
+    }
+
+    /**
+     * @param MetricsTaxonomy   $RootOrganization
+     * @param                   $parent_nid
      *
      * @return int
      */
     private function create_metric_content_by_publishers($RootOrganization, $parent_nid)
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
-        $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm());
-        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}+AND+type:dataset&rows=0&facet.field=publisher";
+        $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
+        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher";
 
         $this->stats++;
 
@@ -688,10 +718,8 @@ class MetricsCounter
             return;
         }
 
-        global $wpdb;
-
         foreach ($publishers as $publisherTitle => $count) {
-            $content_id = $wpdb->get_var(
+            $content_id = $this->wpdb->get_var(
                 "SELECT id FROM `wp_posts` p
                                    INNER JOIN wp_postmeta pm ON pm.post_id = p.id
                                    WHERE post_title = '" . $publisherTitle . "' AND post_type = 'metric_organization'
@@ -714,11 +742,11 @@ class MetricsCounter
             $this->update_post_meta($content_id, 'metric_publisher', $parent_nid);
 
 
-//            http://dev-ckan-fe-data.reisys.com/dataset?publisher=United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department
+//            http://catalog.data.gov/dataset?publisher=United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department
             $this->update_post_meta(
                 $content_id,
                 'metric_url',
-                $this->ckanApiUrl . 'dataset?publisher=' . urlencode($publisherTitle)
+                $this->ckanApiUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
             );
 
             if ('Y' == $RootOrganization->getIsCfo()) {
@@ -729,124 +757,31 @@ class MetricsCounter
 
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
-            $this->results[] = array($RootOrganization->getTitle(), $publisherTitle, $count, '-');
+//                http://catalog.data.gov/api/action/package_search?q=type:dataset+AND+extras_publisher:United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department&sort=metadata_modified+desc&rows=1
+            $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . urlencode(
+                    $publisherTitle
+                ) . "&sort=metadata_modified+desc&rows=1";
+
+            $this->stats++;
+
+            $response = $this->curl_get($url);
+            $body     = json_decode($response, true);
+
+            $last_entry = '-';
+            if (isset($body['result']) && isset($body['result']['results'])) {
+                $last_entry = $body['result']['results'][0]['metadata_modified'];
+                $last_entry = substr($last_entry, 0, 10);
+
+                list($Y, $m, $d) = explode('-', $last_entry);
+                $last_entry = "$m/$d/$Y";
+
+                $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
+            }
+
+            $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $count, $last_entry);
         }
 
         return;
-
-
-        if (false) {
-
-
-            if ($cfo == 'Y') {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Federal');
-            } else {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Other');
-            }
-
-            $this->update_post_meta($new_post_id, 'ckan_unique_id', $ckan_id);
-            $this->update_post_meta($new_post_id, 'metric_last_entry', $last_entry);
-            $this->update_post_meta($new_post_id, 'metric_sync_timestamp', $metric_sync_timestamp);
-
-            $this->update_post_meta(
-                $new_post_id,
-                'metric_url',
-                $this->ckanApiUrl . 'dataset?q=' . $organizations
-            );
-
-
-            if ($parent_node != 0) {
-                $this->update_post_meta($new_post_id, 'parent_organization', $parent_node);
-            }
-
-            if ($agency_level != 0) {
-                $this->update_post_meta($new_post_id, 'parent_agency', 1);
-            }
-
-            $flag = false;
-            if ($count > 0) {
-                if ($export != 0) {
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-
-                if ($parent_node == 0 && $flag == false) {
-                    $parent_name = $title;
-                    $title       = '';
-
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-            }
-        } else {
-            $new_post_id = $content_id;
-            $my_post     = array(
-                'ID'          => $new_post_id,
-                'post_status' => 'publish',
-            );
-
-            wp_update_post($my_post);
-            $this->update_post_meta($new_post_id, 'metric_count', $count);
-            $this->update_post_meta($new_post_id, 'ckan_unique_id', $ckan_id);
-
-            if (!$sub_agency && $cfo == 'Y' && $title != 'Department/Agency Level') {
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta($new_post_id, 'month_' . $i . '_dataset_count', $dataset_count[$i]);
-                }
-
-                $this->update_post_meta($new_post_id, 'last_year_dataset_count', $lastYearCount);
-
-                for ($i = 1; $i < 13; $i++) {
-                    $this->update_post_meta(
-                        $new_post_id,
-                        'month_' . $i . '_dataset_url',
-                        $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $dataset_range[$i]
-                    );
-                }
-
-                $this->update_post_meta(
-                    $new_post_id,
-                    'last_year_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $lastYearRange
-                );
-            }
-
-            if ($cfo == 'Y') {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Federal');
-            } else {
-                $this->update_post_meta($new_post_id, 'metric_sector', 'Other');
-            }
-
-            $this->update_post_meta($new_post_id, 'metric_last_entry', $last_entry);
-            $this->update_post_meta($new_post_id, 'metric_sync_timestamp', $metric_sync_timestamp);
-            $this->update_post_meta(
-                $new_post_id,
-                'metric_url',
-                $this->ckanApiUrl . 'dataset?q=' . $organizations
-            );
-
-            if ($parent_node != 0) {
-                $this->update_post_meta($new_post_id, 'parent_organization', $parent_node);
-            }
-
-            if ($agency_level != 0) {
-                $this->update_post_meta($new_post_id, 'parent_agency', 1);
-            }
-
-            $flag = false;
-            if ($count > 0) {
-                if ($export != 0) {
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-
-                if ($parent_node == 0 && $flag == false) {
-                    $parent_name = $title;
-                    $title       = '';
-
-                    $this->results[] = array($parent_name, $title, $count, $last_entry);
-                }
-            }
-        }
-
-        return $new_post_id;
     }
 
     /**
@@ -866,7 +801,7 @@ class MetricsCounter
             die("unable to create file");
         }
 
-        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency Name', 'Datasets', 'Last Entry'));
+        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Datasets', 'Last Entry'));
 
         foreach ($this->results as $record) {
             fputcsv($fp_csv, $record);
@@ -881,15 +816,15 @@ class MetricsCounter
         $row = 1;
 
         $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, 'Agency Name');
-        $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, 'Sub-Agency Name');
+        $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, 'Sub-Agency/Publisher');
         $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Datasets');
         $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Last Entry');
         $row++;
 
         foreach ($this->results as $record) {
             if ($record) {
-                $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, $record[0]);
-                $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, $record[1]);
+                $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, trim($record[0]));
+                $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, trim($record[1]));
                 $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, $record[2]);
                 $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, $record[3]);
                 $row++;
