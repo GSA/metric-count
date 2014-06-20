@@ -133,7 +133,7 @@ class MetricsCounter
             return;
         }
 
-//        clean all previous metrics
+//        If previous cron script failed, we need to remove trash
         $this->cleaner();
 
 //    Get latest taxonomies from http://idm.data.gov/fed_agency.json
@@ -155,7 +155,7 @@ class MetricsCounter
             $solr_query = "organization:({$solr_terms})";
 
             /**
-             * Count statistics and create data for ROOT organization
+             * Collect statistics and create data for ROOT organization
              */
             $parent_nid = $this->create_metric_content(
                 $RootOrganization->getIsCfo(),
@@ -185,7 +185,9 @@ class MetricsCounter
                 $parent_nid
             );
 
-//        wtf children?
+            /**
+             * Collect statistics and create data for SUB organizations of current $RootOrganization
+             */
             $SubOrganizations = $RootOrganization->getChildren();
             if ($SubOrganizations) {
                 /** @var MetricsTaxonomy $Organization */
@@ -210,6 +212,9 @@ class MetricsCounter
 
         echo 'get count: ' . $this->stats . ' times<br />';
         echo 'get count by month: ' . $this->statsByMonth . ' times<br />';
+
+//        Publish new metrics
+        $this->publishNewMetrics();
 
         $this->unlock();
     }
@@ -245,11 +250,11 @@ class MetricsCounter
     }
 
     /**
-     *
+     *  Clean trash records, if previous cron script failed
      */
     private function cleaner()
     {
-        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
+        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_new'");
         $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
     }
 
@@ -517,50 +522,14 @@ class MetricsCounter
             $lastYearRange = $range;
         }
 
-        if ($sub_agency) {
-//            SUB Agency
-            $content_id = $this->wpdb->get_var(
-                $this->wpdb->prepare(
-                    "SELECT id FROM `wp_posts` p
-                        INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                            AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = %s
-                        INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                            AND pm2.meta_key = 'is_sub_organization'
-                           WHERE post_title = %s AND post_type = 'metric_organization'
-                   ",
-                    $ckan_id,
-                    $title
-                )
-            );
-        } else {
-//            ROOT Agency
-            $content_id = $this->wpdb->get_var(
-                $this->wpdb->prepare(
-                    "SELECT id FROM `wp_posts` p
-                        INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                            AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = %s
-                        INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                            AND pm2.meta_key = 'is_root_organization'
-                           WHERE post_title = %s AND post_type = 'metric_organization'
-                   ",
-                    $ckan_id,
-                    $title
-                )
-            );
-
-            $this->counts[trim($title)] = $count;
-        }
-
 //        create a new agency in DB, if not found yet
-        if (!$content_id) {
-            $my_post = array(
-                'post_title'  => $title,
-                'post_status' => 'publish',
-                'post_type'   => 'metric_organization'
-            );
+        $my_post = array(
+            'post_title'  => $title,
+            'post_status' => 'publish',
+            'post_type'   => 'metric_new'
+        );
 
-            $content_id = wp_insert_post($my_post);
-        }
+        $content_id = wp_insert_post($my_post);
 
         list($Y, $m, $d) = explode('-', $last_entry);
         $last_entry = "$m/$d/$Y";
@@ -608,6 +577,7 @@ class MetricsCounter
 
         if (!$sub_agency) {
             $this->update_post_meta($content_id, 'is_root_organization', 1);
+            $this->counts[trim($title)] = $count;
         } else {
             $this->update_post_meta($content_id, 'is_sub_organization', 1);
         }
@@ -681,30 +651,15 @@ class MetricsCounter
             return;
         }
 
-        $content_id = $this->wpdb->get_var(
-            $this->wpdb->prepare(
-                "SELECT p.id FROM `wp_posts` p
-                    INNER JOIN wp_postmeta pm
-                        ON pm.post_id = p.id AND pm.meta_key = 'metric_department_lvl' AND pm.meta_value = %d
-                    WHERE p.post_title = %s AND p.post_type = 'metric_organization'
-                ",
-                $parent_nid,
-                $publisherTitle
-            )
+        $my_post = array(
+            'post_title'  => $publisherTitle,
+            'post_status' => 'publish',
+            'post_type'   => 'metric_new'
         );
 
-        if (!$content_id) {
+        $content_id = wp_insert_post($my_post);
 
-            $my_post = array(
-                'post_title'  => $publisherTitle,
-                'post_status' => 'publish',
-                'post_type'   => 'metric_organization'
-            );
-
-            $content_id = wp_insert_post($my_post);
-
-            $this->update_post_meta($content_id, 'metric_department_lvl', $parent_nid);
-        }
+        $this->update_post_meta($content_id, 'metric_department_lvl', $parent_nid);
 
         $this->update_post_meta($content_id, 'metric_count', $count);
 
@@ -764,30 +719,15 @@ class MetricsCounter
         }
 
         foreach ($publishers as $publisherTitle => $count) {
-            $content_id = $this->wpdb->get_var(
-                $this->wpdb->prepare(
-                    "SELECT id FROM `wp_posts` p
-                        INNER JOIN wp_postmeta pm
-                            ON pm.post_id = p.id AND pm.meta_key = 'metric_publisher' AND pm.AND meta_value = %d
-                        WHERE post_title = %s AND post_type = 'metric_organization'
-                    ",
-                    $parent_nid,
-                    $publisherTitle
-                )
+            $my_post = array(
+                'post_title'  => $publisherTitle,
+                'post_status' => 'publish',
+                'post_type'   => 'metric_new'
             );
 
-            if (!$content_id) {
+            $content_id = wp_insert_post($my_post);
 
-                $my_post = array(
-                    'post_title'  => $publisherTitle,
-                    'post_status' => 'publish',
-                    'post_type'   => 'metric_organization'
-                );
-
-                $content_id = wp_insert_post($my_post);
-
-                $this->update_post_meta($content_id, 'metric_publisher', $parent_nid);
-            }
+            $this->update_post_meta($content_id, 'metric_publisher', $parent_nid);
 
             $this->update_post_meta($content_id, 'metric_count', $count);
 
@@ -884,6 +824,20 @@ class MetricsCounter
         $objWriter = new PHPExcel_Writer_Excel2007($objPHPExcel);
         // Write the Excel file to filename some_excel_file.xlsx in the current directory
         $objWriter->save($upload_dir['basedir'] . '/federal-agency-participation.xls');
+    }
+
+    /**
+     *  Replace previous data with latest metrics
+     */
+    private function publishNewMetrics()
+    {
+        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
+        $this->wpdb->query(
+            "UPDATE wp_posts SET post_type='metric_organization' WHERE post_type='metric_new'"
+        );
+        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
+
+        update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()).' GMT');
     }
 
     /**
