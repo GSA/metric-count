@@ -10,7 +10,6 @@ if (current_user_can( 'manage_options' )) {
 //    define('DELETE_DUPLICATE_META', true);
 
     get_ckan_metric_info();
-    echo 'done';
 } else {
     echo 'Permission denied';
 }

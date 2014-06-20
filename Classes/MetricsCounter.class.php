@@ -14,32 +14,31 @@ require_once 'Classes/PHPExcel/IOFactory.php';
 class MetricsCounter
 {
     /**
+     *
+     */
+    const LOCK_TITLE = 'metrics_cron_lock';
+    /**
      * cURL handler
      * @var resource
      */
     private $ch;
-
     /**
      * cURL headers
      * @var array
      */
     private $ch_headers;
-
     /**
      * @var string
      */
     private $ckan_no_cache_ip = '';
-
     /**
      * @var string
      */
     private $idm_json_url = '';
-
     /**
      * @var mixed|string
      */
     private $ckanApiUrl = '';
-
     /**
      * @var int
      */
@@ -48,17 +47,14 @@ class MetricsCounter
      * @var int
      */
     private $statsByMonth = 0;
-
     /**
      * @var array
      */
     private $results = array();
-
     /**
      * @var WP_DB
      */
     private $wpdb;
-
     /**
      * @var array
      */
@@ -131,6 +127,13 @@ class MetricsCounter
      */
     public function updateMetrics()
     {
+        if (!$this->checkLock()) {
+            echo "Locked: another instance of metrics script is already running. Please try again later";
+
+            return;
+        }
+
+//        clean all previous metrics
         $this->cleaner();
 
 //    Get latest taxonomies from http://idm.data.gov/fed_agency.json
@@ -207,6 +210,38 @@ class MetricsCounter
 
         echo 'get count: ' . $this->stats . ' times<br />';
         echo 'get count by month: ' . $this->statsByMonth . ' times<br />';
+
+        $this->unlock();
+    }
+
+    /**
+     * @return bool
+     */
+    private function checkLock()
+    {
+        $lock = get_option(self::LOCK_TITLE);
+
+        if ($lock) {
+            $now  = time();
+            $diff = $now - $lock;
+
+//            30 minutes lock
+            if ($diff < (30 * 60)) {
+                return false;
+            }
+        }
+
+        $this->lock();
+
+        return true;
+    }
+
+    /**
+     *  Lock the system to avoid simultaneous cron runs
+     */
+    private function lock()
+    {
+        update_option(self::LOCK_TITLE, time());
     }
 
     /**
@@ -485,24 +520,32 @@ class MetricsCounter
         if ($sub_agency) {
 //            SUB Agency
             $content_id = $this->wpdb->get_var(
-                "SELECT id FROM `wp_posts` p
-                    INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                        AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
-                    INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                        AND pm2.meta_key = 'is_sub_organization'
-                       WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
-                   "
+                $this->wpdb->prepare(
+                    "SELECT id FROM `wp_posts` p
+                        INNER JOIN wp_postmeta pm ON pm.post_id = p.id
+                            AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = %s
+                        INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
+                            AND pm2.meta_key = 'is_sub_organization'
+                           WHERE post_title = %s AND post_type = 'metric_organization'
+                   ",
+                    $ckan_id,
+                    $title
+                )
             );
         } else {
 //            ROOT Agency
             $content_id = $this->wpdb->get_var(
-                "SELECT id FROM `wp_posts` p
-                    INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                        AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = '" . $ckan_id . "'
-                    INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
-                        AND pm2.meta_key = 'is_root_organization'
-                       WHERE post_title = '" . $title . "' AND post_type = 'metric_organization'
-                   "
+                $this->wpdb->prepare(
+                    "SELECT id FROM `wp_posts` p
+                        INNER JOIN wp_postmeta pm ON pm.post_id = p.id
+                            AND pm.meta_key = 'ckan_unique_id' AND pm.meta_value = %s
+                        INNER JOIN wp_postmeta pm2 ON pm2.post_id = p.id
+                            AND pm2.meta_key = 'is_root_organization'
+                           WHERE post_title = %s AND post_type = 'metric_organization'
+                   ",
+                    $ckan_id,
+                    $title
+                )
             );
 
             $this->counts[trim($title)] = $count;
@@ -639,11 +682,15 @@ class MetricsCounter
         }
 
         $content_id = $this->wpdb->get_var(
-            "SELECT p.id FROM `wp_posts` p
-                INNER JOIN wp_postmeta pm
-                    ON pm.post_id = p.id AND pm.meta_key = 'metric_department_lvl' AND pm.meta_value = '$parent_nid'
-                WHERE p.post_title = '" . $publisherTitle . "' AND p.post_type = 'metric_organization'
-                "
+            $this->wpdb->prepare(
+                "SELECT p.id FROM `wp_posts` p
+                    INNER JOIN wp_postmeta pm
+                        ON pm.post_id = p.id AND pm.meta_key = 'metric_department_lvl' AND pm.meta_value = %d
+                    WHERE p.post_title = %s AND p.post_type = 'metric_organization'
+                ",
+                $parent_nid,
+                $publisherTitle
+            )
         );
 
         if (!$content_id) {
@@ -718,10 +765,15 @@ class MetricsCounter
 
         foreach ($publishers as $publisherTitle => $count) {
             $content_id = $this->wpdb->get_var(
-                "SELECT id FROM `wp_posts` p
-                                   INNER JOIN wp_postmeta pm ON pm.post_id = p.id
-                                   WHERE post_title = '" . $publisherTitle . "' AND post_type = 'metric_organization'
-                   AND meta_key = 'metric_publisher' AND meta_value = '$parent_nid'"
+                $this->wpdb->prepare(
+                    "SELECT id FROM `wp_posts` p
+                        INNER JOIN wp_postmeta pm
+                            ON pm.post_id = p.id AND pm.meta_key = 'metric_publisher' AND pm.AND meta_value = %d
+                        WHERE post_title = %s AND post_type = 'metric_organization'
+                    ",
+                    $parent_nid,
+                    $publisherTitle
+                )
             );
 
             if (!$content_id) {
@@ -733,12 +785,11 @@ class MetricsCounter
                 );
 
                 $content_id = wp_insert_post($my_post);
+
+                $this->update_post_meta($content_id, 'metric_publisher', $parent_nid);
             }
 
             $this->update_post_meta($content_id, 'metric_count', $count);
-
-            $this->update_post_meta($content_id, 'metric_publisher', $parent_nid);
-
 
 //            http://catalog.data.gov/dataset?publisher=United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department
             $this->update_post_meta(
@@ -833,5 +884,13 @@ class MetricsCounter
         $objWriter = new PHPExcel_Writer_Excel2007($objPHPExcel);
         // Write the Excel file to filename some_excel_file.xlsx in the current directory
         $objWriter->save($upload_dir['basedir'] . '/federal-agency-participation.xls');
+    }
+
+    /**
+     *  Unlock the system for next cron run
+     */
+    private function unlock()
+    {
+        delete_option(self::LOCK_TITLE);
     }
 }
