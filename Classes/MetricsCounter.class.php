@@ -153,15 +153,15 @@ class MetricsCounter
                  * Executive Office of the President [eop-gov]
                  */
                 try {
-                    $children = $RootOrganization->getTerms();
+                    $children       = $RootOrganization->getTerms();
                     $firstChildTerm = trim($children[0], '(")');
                     list (, $fed, $gov) = explode('-', $firstChildTerm);
                     if (!$fed || !$gov) {
                         continue;
                     }
                     $RootOrganization->setTerm("$fed-$gov");
-                    echo "uglyfix: $fed-$gov<br />".PHP_EOL;
-                } catch(Exception $ex) {
+                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
+                } catch (Exception $ex) {
 //                    didn't help. Skip
                     continue;
                 }
@@ -718,7 +718,7 @@ class MetricsCounter
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
         $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
-        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher";
+        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
 
         $this->stats++;
 
@@ -853,7 +853,7 @@ class MetricsCounter
         );
         $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
 
-        update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()).' GMT');
+        update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()) . ' GMT');
     }
 
     /**
