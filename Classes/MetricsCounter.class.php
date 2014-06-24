@@ -148,7 +148,23 @@ class MetricsCounter
         foreach ($FederalOrganizationTree as $RootOrganization) {
 //        skip broken structures
             if (!$RootOrganization->getTerm()) {
-                continue;
+                /**
+                 * Ugly TEMPORARY hack for missing
+                 * Executive Office of the President [eop-gov]
+                 */
+                try {
+                    $children = $RootOrganization->getTerms();
+                    $firstChildTerm = trim($children[0], '(")');
+                    list (, $fed, $gov) = explode('-', $firstChildTerm);
+                    if (!$fed || !$gov) {
+                        continue;
+                    }
+                    $RootOrganization->setTerm("$fed-$gov");
+                    echo "uglyfix: $fed-$gov<br />".PHP_EOL;
+                } catch(Exception $ex) {
+//                    didn't help. Skip
+                    continue;
+                }
             }
 
             $solr_terms = join('+OR+', $RootOrganization->getTerms());
@@ -363,13 +379,13 @@ class MetricsCounter
                 continue;
             }
 
-//        ignore 3rd level ones
-            if ($taxonomy['unique id'] != $taxonomy['term']) {
+//        Empty Federal Agency = illegal
+            if (!$taxonomy['Federal Agency']) {
                 continue;
             }
 
-//        Empty Federal Agency = illegal
-            if (!$taxonomy['Federal Agency']) {
+//        ignore 3rd level ones
+            if ($taxonomy['unique id'] != $taxonomy['term']) {
                 continue;
             }
 
