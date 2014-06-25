@@ -74,6 +74,7 @@ class MetricsTaxonomiesTree
         if (isset($this->tree[$vocabulary])) {
             $tree = $this->tree[$vocabulary];
         }
+        sort($tree);
         return $tree;
     }
 }

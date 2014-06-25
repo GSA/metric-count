@@ -734,6 +734,8 @@ class MetricsCounter
             return;
         }
 
+        ksort($publishers);
+
         foreach ($publishers as $publisherTitle => $count) {
             $my_post = array(
                 'post_title'  => $publisherTitle,

@@ -48,7 +48,7 @@ class MetricsTaxonomy
     public function addChild(MetricsTaxonomy $taxonomy)
     {
         $this->terms[]    = '('.$taxonomy->getTerm().')';
-        $this->children[] = $taxonomy;
+        $this->children[$taxonomy->getTitle()] = $taxonomy;
 
         return $this;
     }
@@ -76,7 +76,7 @@ class MetricsTaxonomy
             $return['children'] = array();
             /** @var self $subAgency */
             foreach ($this->children as $subAgency) {
-                $return['children'][] = $subAgency->toArray();
+                $return['children'][$subAgency->getTitle()] = $subAgency->toArray();
             }
         }
 
