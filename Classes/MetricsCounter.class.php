@@ -1,11 +1,11 @@
 <?php
 
-require_once 'MetricsTaxonomy.class.php';
-require_once 'MetricsTaxonomiesTree.class.php';
+require_once __DIR__.'/MetricsTaxonomy.class.php';
+require_once __DIR__.'/MetricsTaxonomiesTree.class.php';
 
 /** Include PHPExcel */
-require_once 'Classes/PHPExcel.php';
-require_once 'Classes/PHPExcel/IOFactory.php';
+require_once __DIR__.'/PHPExcel.php';
+require_once __DIR__.'/PHPExcel/IOFactory.php';
 
 
 /**
@@ -132,6 +132,8 @@ class MetricsCounter
 
             return;
         }
+
+        set_time_limit(60*60);  //  1 hour
 
 //        If previous cron script failed, we need to remove trash
         $this->cleaner();
