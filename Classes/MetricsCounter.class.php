@@ -798,6 +798,8 @@ class MetricsCounter
      */
     private function write_metrics_csv_and_xls()
     {
+        require_once __DIR__ . '/PHPExcel/IOFactory.php';
+
         asort($this->results);
 //    chdir(ABSPATH.'media/');
 
@@ -840,9 +842,7 @@ class MetricsCounter
             }
         }
 
-        // Instantiate a Writer to create an OfficeOpenXML Excel .xlsx file
-        $objWriter = new PHPExcel_Writer_Excel2007($objPHPExcel);
-        // Write the Excel file to filename some_excel_file.xlsx in the current directory
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
         $objWriter->save($upload_dir['basedir'] . '/federal-agency-participation.xls');
     }
 
