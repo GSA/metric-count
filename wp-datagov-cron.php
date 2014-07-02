@@ -7,7 +7,7 @@ require_once ('../../../wp/wp-blog-header.php');
 if (current_user_can( 'manage_options' )) {
     ignore_user_abort(true);
 
-    error_reporting(E_ALL);
+    error_reporting(E_ALL & ~E_NOTICE);
     ini_set('display_errors', true);
 
 //    define('DELETE_DUPLICATE_META', true);

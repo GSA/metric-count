@@ -133,7 +133,7 @@ class MetricsCounter
             return;
         }
 
-        set_time_limit(60*60);  //  1 hour
+        set_time_limit(60*60*5);  //  5 hours
 
 //        If previous cron script failed, we need to remove trash
         $this->cleaner();
@@ -300,7 +300,7 @@ class MetricsCounter
             $url = 'http:' . $url;
         }
 
-        $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
+//        $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
 
         try {
             $result = $this->curl_make_request('GET', $url);
