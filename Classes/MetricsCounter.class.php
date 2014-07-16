@@ -30,7 +30,7 @@ class MetricsCounter
     /**
      * @var string
      */
-    private $ckan_no_cache_ip = '';
+//    private $ckan_no_cache_ip = '';
     /**
      * @var string
      */
@@ -76,7 +76,7 @@ class MetricsCounter
         }
         $this->ckanApiUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanApiUrl);
 
-        $this->ckan_no_cache_ip = get_option('ckan_no_cache_ip') ? get_option('ckan_no_cache_ip') : '216.128.241.210';
+//        $this->ckan_no_cache_ip = get_option('ckan_no_cache_ip') ? get_option('ckan_no_cache_ip') : '216.128.241.210';
 
         global $wpdb;
 //        hate this sh*t
@@ -305,7 +305,8 @@ class MetricsCounter
         try {
             $result = $this->curl_make_request('GET', $url);
         } catch (Exception $ex) {
-            echo $ex->getMessage() . '<br />';
+            echo '<hr />'.$url.'<br />';
+            echo $ex->getMessage() . '<hr />';
             $result = false;
         }
 
