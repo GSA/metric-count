@@ -1,11 +1,11 @@
 <?php
 
-require_once __DIR__.'/MetricsTaxonomy.class.php';
-require_once __DIR__.'/MetricsTaxonomiesTree.class.php';
+require_once __DIR__ . '/MetricsTaxonomy.class.php';
+require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 
 /** Include PHPExcel */
-require_once __DIR__.'/PHPExcel.php';
-require_once __DIR__.'/PHPExcel/IOFactory.php';
+require_once __DIR__ . '/PHPExcel.php';
+require_once __DIR__ . '/PHPExcel/IOFactory.php';
 
 
 /**
@@ -114,7 +114,7 @@ class MetricsCounter
      */
     private function set_headers()
     {
-        $date             = new DateTime(null, new DateTimeZone('UTC'));
+        $date = new DateTime(null, new DateTimeZone('UTC'));
         $this->ch_headers = array(
             'Date: ' . $date->format('D, d M Y H:i:s') . ' GMT', // RFC 1123
             'Accept-Charset: utf-8',
@@ -133,7 +133,7 @@ class MetricsCounter
             return;
         }
 
-        set_time_limit(60*60*5);  //  5 hours
+        set_time_limit(60 * 60 * 5);  //  5 hours
 
 //        If previous cron script failed, we need to remove trash
         $this->cleaner();
@@ -155,14 +155,14 @@ class MetricsCounter
                  * Executive Office of the President [eop-gov]
                  */
                 try {
-                    $children       = $RootOrganization->getTerms();
+                    $children = $RootOrganization->getTerms();
                     $firstChildTerm = trim($children[0], '(")');
                     list (, $fed, $gov) = explode('-', $firstChildTerm);
                     if (!$fed || !$gov) {
                         continue;
                     }
                     $RootOrganization->setTerm("$fed-$gov");
-                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
+//                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
                 } catch (Exception $ex) {
 //                    didn't help. Skip
                     continue;
@@ -239,13 +239,14 @@ class MetricsCounter
 
     /**
      * @return bool
+     * unlocked automatically after 30 minutes, if script died
      */
     private function checkLock()
     {
         $lock = get_option(self::LOCK_TITLE);
 
         if ($lock) {
-            $now  = time();
+            $now = time();
             $diff = $now - $lock;
 
 //            30 minutes lock
@@ -281,8 +282,8 @@ class MetricsCounter
      */
     private function ckan_metric_get_taxonomies()
     {
-        $response   = $this->curl_get($this->idm_json_url);
-        $body       = json_decode($response, true);
+        $response = $this->curl_get($this->idm_json_url);
+        $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
 
         return $taxonomies;
@@ -295,7 +296,8 @@ class MetricsCounter
      */
     private function curl_get(
         $url
-    ) {
+    )
+    {
         if ('http' != substr($url, 0, 4)) {
             $url = 'http:' . $url;
         }
@@ -305,7 +307,7 @@ class MetricsCounter
         try {
             $result = $this->curl_make_request('GET', $url);
         } catch (Exception $ex) {
-            echo '<hr />'.$url.'<br />';
+            echo '<hr />' . $url . '<br />';
             echo $ex->getMessage() . '<hr />';
             $result = false;
         }
@@ -315,8 +317,8 @@ class MetricsCounter
 
     /**
      * @param string $method // HTTP method (GET, POST)
-     * @param string $uri    // URI fragment to CKAN resource
-     * @param string $data   // Optional. String in JSON-format that will be in request body
+     * @param string $uri // URI fragment to CKAN resource
+     * @param string $data // Optional. String in JSON-format that will be in request body
      *
      * @return mixed    // If success, either an array or object. Otherwise FALSE.
      * @throws Exception
@@ -325,7 +327,8 @@ class MetricsCounter
         $method,
         $uri,
         $data = null
-    ) {
+    )
+    {
         $method = strtoupper($method);
         if (!in_array($method, array('GET', 'POST'))) {
             throw new Exception('Method ' . $method . ' is not supported');
@@ -347,7 +350,7 @@ class MetricsCounter
         curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->ch_headers);
         // Execute request and get response headers.
         $response = curl_exec($this->ch);
-        $info     = curl_getinfo($this->ch);
+        $info = curl_getinfo($this->ch);
         // Check HTTP response code
         if ($info['http_code'] !== 200) {
             switch ($info['http_code']) {
@@ -432,11 +435,11 @@ class MetricsCounter
      * @param        $title
      * @param        $ckan_id
      * @param        $organizations
-     * @param int    $parent_node
-     * @param int    $agency_level
+     * @param int $parent_node
+     * @param int $agency_level
      * @param string $parent_name
-     * @param int    $sub_agency
-     * @param int    $export
+     * @param int $sub_agency
+     * @param int $export
      *
      * @return mixed
      */
@@ -450,14 +453,15 @@ class MetricsCounter
         $parent_name = '',
         $sub_agency = 0,
         $export = 0
-    ) {
+    )
+    {
         if (strlen($ckan_id) != 0) {
             $url = $this->ckanApiUrl . "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset&rows=1&sort=metadata_modified+desc";
 
             $this->stats++;
 
             $response = $this->curl_get($url);
-            $body     = json_decode($response, true);
+            $body = json_decode($response, true);
 
             $count = $body['result']['count'];
 
@@ -482,7 +486,7 @@ class MetricsCounter
             $month = date('m');
 
             $startDate = mktime(0, 0, 0, $month - 11, 1, date('Y'));
-            $endDate   = mktime(0, 0, 0, $month, date('t'), date('Y'));
+            $endDate = mktime(0, 0, 0, $month, date('t'), date('Y'));
 
             $tmp = date('mY', $endDate);
 
@@ -491,7 +495,7 @@ class MetricsCounter
             while (true) {
                 $months[] = array(
                     'month' => date('m', $startDate),
-                    'year'  => date('Y', $startDate)
+                    'year' => date('Y', $startDate)
                 );
 
                 if ($tmp == date('mY', $startDate)) {
@@ -511,14 +515,14 @@ class MetricsCounter
              */
             foreach ($months as $date_arr) {
                 $startDt = date('Y-m-d', mktime(0, 0, 0, $date_arr['month'], 1, $date_arr['year']));
-                $endDt   = date('Y-m-t', mktime(0, 0, 0, $date_arr['month'], 1, $date_arr['year']));
+                $endDt = date('Y-m-t', mktime(0, 0, 0, $date_arr['month'], 1, $date_arr['year']));
 
                 $range = "[" . $startDt . "T00:00:00Z%20TO%20" . $endDt . "T23:59:59Z]";
 
-                $url = $this->ckanApiUrl . "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset+AND+metadata_created:$range&rows=0";
+                $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_created:{$range}&rows=0";
                 $this->statsByMonth++;
                 $response = $this->curl_get($url);
-                $body     = json_decode($response, true);
+                $body = json_decode($response, true);
 
                 $dataset_count[$i] = $body['result']['count'];
                 $dataset_range[$i] = $range;
@@ -531,11 +535,11 @@ class MetricsCounter
 
             $range = "[" . $oneYearAgo . "T00:00:00Z%20TO%20NOW]";
 
-            $url = $this->ckanApiUrl . "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset+AND+metadata_created:$range&rows=0";
+            $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_created:$range&rows=0";
 
             $this->statsByMonth++;
             $response = $this->curl_get($url);
-            $body     = json_decode($response, true);
+            $body = json_decode($response, true);
 
             $lastYearCount = $body['result']['count'];
             $lastYearRange = $range;
@@ -543,9 +547,9 @@ class MetricsCounter
 
 //        create a new agency in DB, if not found yet
         $my_post = array(
-            'post_title'  => $title,
+            'post_title' => $title,
             'post_status' => 'publish',
-            'post_type'   => 'metric_new'
+            'post_type' => 'metric_new'
         );
 
         $content_id = wp_insert_post($my_post);
@@ -617,7 +621,7 @@ class MetricsCounter
 
             if ($parent_node == 0 && $flag == false) {
                 $parent_name = $title;
-                $title       = '';
+                $title = '';
 
                 $this->results[] = array($parent_name, $title, $count, $last_entry);
             }
@@ -654,12 +658,12 @@ class MetricsCounter
         $ckan_organization = 'organization:' . urlencode(
                 $RootOrganization->getTerm()
             ) . '+AND+type:dataset+AND+-extras_publisher:*';
-        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&sort=metadata_modified+desc&rows=1";
+        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&sort=metadata_modified+desc&rows=1";
 
         $this->stats++;
 
         $response = $this->curl_get($url);
-        $body     = json_decode($response, true);
+        $body = json_decode($response, true);
 
         if (!isset($body['result']['count']) || !($count = $body['result']['count'])) {
             return;
@@ -671,9 +675,9 @@ class MetricsCounter
         }
 
         $my_post = array(
-            'post_title'  => $publisherTitle,
+            'post_title' => $publisherTitle,
             'post_status' => 'publish',
-            'post_type'   => 'metric_new'
+            'post_type' => 'metric_new'
         );
 
         $content_id = wp_insert_post($my_post);
@@ -712,7 +716,7 @@ class MetricsCounter
     }
 
     /**
-     * @param MetricsTaxonomy   $RootOrganization
+     * @param MetricsTaxonomy $RootOrganization
      * @param                   $parent_nid
      *
      * @return int
@@ -721,12 +725,12 @@ class MetricsCounter
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
         $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
-        $url               = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
+        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
 
         $this->stats++;
 
         $response = $this->curl_get($url);
-        $body     = json_decode($response, true);
+        $body = json_decode($response, true);
 
         if (!isset($body['result']['facets']['publisher'])) {
             return;
@@ -741,9 +745,9 @@ class MetricsCounter
 
         foreach ($publishers as $publisherTitle => $count) {
             $my_post = array(
-                'post_title'  => $publisherTitle,
+                'post_title' => $publisherTitle,
                 'post_status' => 'publish',
-                'post_type'   => 'metric_new'
+                'post_type' => 'metric_new'
             );
 
             $content_id = wp_insert_post($my_post);
@@ -768,14 +772,15 @@ class MetricsCounter
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
 //                http://catalog.data.gov/api/action/package_search?q=type:dataset+AND+extras_publisher:United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department&sort=metadata_modified+desc&rows=1
-            $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . urlencode(
-                    $publisherTitle
-                ) . "&sort=metadata_modified+desc&rows=1";
+
+            $apiPublisherTitle = str_replace(array('/', '%2F'), array('\/', '%5C%2F'), urlencode($publisherTitle));
+            $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . $apiPublisherTitle . "&sort=metadata_modified+desc&rows=1";
+//            echo $url."<br /><hr />";
 
             $this->stats++;
 
             $response = $this->curl_get($url);
-            $body     = json_decode($response, true);
+            $body = json_decode($response, true);
 
             $last_entry = '-';
             if (isset($body['result']) && isset($body['result']['results'])) {
@@ -806,8 +811,13 @@ class MetricsCounter
 
         $upload_dir = wp_upload_dir();
 
+        $csvPath = $upload_dir['basedir'] . '/federal-agency-participation.csv';
+        if (file_exists($csvPath) && !is_writable($csvPath)) {
+            die('could not write ' . $csvPath);
+        }
+
 //    Write CSV result file
-        $fp_csv = fopen($upload_dir['basedir'] . '/federal-agency-participation.csv', 'w');
+        $fp_csv = fopen($csvPath, 'w');
 
         if ($fp_csv == false) {
             die("unable to create file");
@@ -819,6 +829,12 @@ class MetricsCounter
             fputcsv($fp_csv, $record);
         }
         fclose($fp_csv);
+
+        chmod($csvPath, 666);
+
+        if (!file_exists($csvPath)) {
+            die('could not write ' . $csvPath);
+        }
 
         // Instantiate a new PHPExcel object
         $objPHPExcel = new PHPExcel();
@@ -844,7 +860,18 @@ class MetricsCounter
         }
 
         $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
-        $objWriter->save($upload_dir['basedir'] . '/federal-agency-participation.xls');
+
+        $xlsPath = $upload_dir['basedir'] . '/federal-agency-participation.xls';
+        if (file_exists($xlsPath) && !is_writable($xlsPath)) {
+            die('could not write ' . $xlsPath);
+        }
+
+        $objWriter->save($xlsPath);
+        chmod($xlsPath, 666);
+
+        if (!file_exists($xlsPath)) {
+            die('could not write ' . $xlsPath);
+        }
     }
 
     /**

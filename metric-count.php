@@ -26,7 +26,7 @@ function metric_configuration()
 function metric_count_settings()
 {
     $ckan_access_pt = (get_option('ckan_access_pt')) ? get_option('ckan_access_pt') : '//catalog.data.gov/';
-    $org_server     = (get_option('org_server')) ? get_option(
+    $org_server = (get_option('org_server')) ? get_option(
         'org_server'
     ) : 'http://idm.data.gov/fed_agency.json';
 
@@ -64,6 +64,10 @@ function metric_count_settings()
 function get_ckan_metric_info()
 {
     ignore_user_abort(true);
+
+    error_reporting(E_ALL & ~E_NOTICE);
+    ini_set('display_errors', '1');
+    set_time_limit(60 * 30);  //  30 minutes
 
     require_once 'Classes/MetricsCounter.class.php';
 
