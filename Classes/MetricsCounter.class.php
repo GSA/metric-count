@@ -812,7 +812,7 @@ class MetricsCounter
         $upload_dir = wp_upload_dir();
 
         $csvPath = $upload_dir['basedir'] . '/federal-agency-participation.csv';
-        @chmod($csvPath, 666);
+        @chmod($csvPath, 0666);
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
         }
@@ -831,7 +831,7 @@ class MetricsCounter
         }
         fclose($fp_csv);
 
-        @chmod($csvPath, 666);
+        @chmod($csvPath, 0666);
 
         if (!file_exists($csvPath)) {
             die('could not write ' . $csvPath);
@@ -863,13 +863,13 @@ class MetricsCounter
         $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
 
         $xlsPath = $upload_dir['basedir'] . '/federal-agency-participation.xls';
-        @chmod($xlsPath, 666);
+        @chmod($xlsPath, 0666);
         if (file_exists($xlsPath) && !is_writable($xlsPath)) {
             die('could not write ' . $xlsPath);
         }
 
         $objWriter->save($xlsPath);
-        @chmod($xlsPath, 666);
+        @chmod($xlsPath, 0666);
 
         if (!file_exists($xlsPath)) {
             die('could not write ' . $xlsPath);
