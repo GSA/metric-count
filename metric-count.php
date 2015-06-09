@@ -25,10 +25,11 @@ function metric_configuration()
  */
 function metric_count_settings()
 {
+    $site_url = wp_option('siteurl') . '/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
     $ckan_access_pt = (get_option('ckan_access_pt')) ? get_option('ckan_access_pt') : '//catalog.data.gov/';
     $org_server = (get_option('org_server')) ? get_option(
         'org_server'
-    ) : 'http://idm.data.gov/fed_agency.json';
+    ) : $site_url;
 
     $html = '<form action="options.php" method="post" name="options">
 			<h2>Metric Count Settings</h2>' . wp_nonce_field('update-options');
