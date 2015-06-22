@@ -67,7 +67,7 @@ class MetricsCounter
     {
         $this->idm_json_url = get_option('org_server');
         if (!$this->idm_json_url) {
-            $this->idm_json_url = 'http://idm.data.gov/fed_agency.json';
+            $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
         }
 
         $this->ckanApiUrl = get_option('ckan_access_pt');
