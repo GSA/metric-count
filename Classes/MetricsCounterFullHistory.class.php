@@ -375,7 +375,22 @@ class MetricsCounterFullHistory
         foreach ($this->chart_by_month_data_html as $row) {
             $html .= '  <tr><td>' . join('</td><td>', $row) . '</td></tr>' . PHP_EOL;
         }
-        $html = '<table>' . $html . '</table>';
+        $html = <<<END
+<html>
+    <head>
+        <style type="text/css">
+            tbody tr:nth-child(odd) {
+                background-color: #ddd;
+            }
+        </style>
+    </head>
+    <body>
+        <table>
+            $html
+        </table>
+    </body>
+</html>
+END;
 
         file_put_contents($htmlPath, $html);
 
