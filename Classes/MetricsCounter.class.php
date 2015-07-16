@@ -229,7 +229,7 @@ class MetricsCounter
 
         $this->write_metrics_csv_and_xls();
 
-        echo 'get count: ' . $this->stats . ' times<br />';
+        echo '<hr />get count: ' . $this->stats . ' times<br />';
         echo 'get count by month: ' . $this->statsByMonth . ' times<br />';
 
 //        Publish new metrics
@@ -520,7 +520,7 @@ class MetricsCounter
 
                 $range = "[" . $startDt . "T00:00:00Z%20TO%20" . $endDt . "T23:59:59Z]";
 
-                $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_created:{$range}&rows=0";
+                $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_modified:{$range}&rows=0";
                 $this->statsByMonth++;
                 $response = $this->curl_get($url);
                 $body = json_decode($response, true);
@@ -536,7 +536,7 @@ class MetricsCounter
 
             $range = "[" . $oneYearAgo . "T00:00:00Z%20TO%20NOW]";
 
-            $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_created:$range&rows=0";
+            $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_modified:$range&rows=0";
 
             $this->statsByMonth++;
             $response = $this->curl_get($url);
@@ -571,14 +571,14 @@ class MetricsCounter
                 $this->update_post_meta(
                     $content_id,
                     'month_' . $i . '_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $dataset_range[$i]
+                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $dataset_range[$i]
                 );
             }
 
             $this->update_post_meta(
                 $content_id,
                 'last_year_dataset_url',
-                $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_created:' . $lastYearRange
+                $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $lastYearRange
             );
 
         }

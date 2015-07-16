@@ -76,6 +76,23 @@ function get_ckan_metric_info()
     $MetricsCounter->updateMetrics();
 }
 
+function get_ckan_metric_info_full_history()
+{
+    ignore_user_abort(true);
+
+    error_reporting(E_ALL & ~E_NOTICE);
+    ini_set('display_errors', '1');
+    set_time_limit(60 * 30);  //  30 minutes
+
+    require_once 'Classes/MetricsCounterFullHistory.class.php';
+
+    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
+    $MetricsCounterFullHistory->generate_reports();
+
+    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_modified');
+    $MetricsCounterFullHistory->generate_reports();
+}
+
 register_activation_hook(__FILE__, 'my_activation');
 add_action('metrics_daily_update', 'get_ckan_metric_info');
 
