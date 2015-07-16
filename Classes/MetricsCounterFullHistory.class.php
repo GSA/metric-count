@@ -92,7 +92,7 @@ class MetricsCounterFullHistory
             return;
         }
 
-        set_time_limit(60 * 60 * 5);  //  5 hours
+        set_time_limit(30 * 60 * 5);  // 30 minutes must be more than enough
 
         $this->generate_header();
 
