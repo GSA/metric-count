@@ -41,6 +41,10 @@ class MetricsCounterFullHistory
     /**
      * @var array
      */
+    private $data_tree;
+    /**
+     * @var array
+     */
     private $chart_by_month_data_html = array();
     /**
      * @var array
@@ -70,6 +74,13 @@ class MetricsCounterFullHistory
         if (!$this->idm_json_url) {
             $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
         }
+
+        $this->data_tree = array(
+            'total' => 0,
+            'updated_at' => date(DATE_RFC2822),
+            'total_by_month' => array(),
+            'organizations' => array()
+        );
 
         $this->ckanApiUrl = get_option('ckan_access_pt');
         if (!$this->ckanApiUrl) {
@@ -139,7 +150,7 @@ class MetricsCounterFullHistory
             );
         }
 
-        $this->write_metrics_csv_and_xls();
+        $this->write_metrics_files();
 
         echo '<hr />get count: ' . $this->debugStats . ' times<br />';
         echo 'get count by month: ' . $this->debugStatsByMonth . ' times<br />';
@@ -295,6 +306,11 @@ class MetricsCounterFullHistory
         $organizations
     )
     {
+        $organization = array(
+            'title' => $title,
+            'total' => 0,
+            'metrics' => array()
+        );
         $chart_data = $chart_data_html = array($title);
 
         $now = date('M Y');
@@ -304,25 +320,47 @@ class MetricsCounterFullHistory
         $Year = $this->first_year;
 
         while ($date != $now) {
-            $startDt = date('Y-m-d', mktime(0, 0, 0, $month, 1, $Year));
-            $endDt = date('Y-m-t', mktime(0, 0, 0, $month, 1, $Year));
+            $startDt = date('Y-m-d', mktime(0, 0, 0, $month, 1, $Year)) . 'T00:00:00Z';
+            $endDt = date('Y-m-t', mktime(0, 0, 0, $month, 1, $Year)) . 'T23:59:59Z';
 
-            $range = "[" . $startDt . "T00:00:00Z%20TO%20" . $endDt . "T23:59:59Z]";
+            $range = "[" . $startDt . "%20TO%20" . $endDt . "]";
 
-            $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+" . $this->date_field . ":{$range}&rows=0";
-            $ui_url = $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+' . $this->date_field . ':' . $range;
+            $api_url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+" . $this->date_field . ":{$range}&rows=0";
+            $web_url = $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+' . $this->date_field . ':' . $range;
 
             $this->debugStatsByMonth++;
-            $response = $this->curl->get($url);
+            $response = $this->curl->get($api_url);
             $body = json_decode($response, true);
 
             $dataset_count = $body['result']['count'];
             $chart_data[] = $dataset_count;
-            $chart_data_html[] = '<a href="' . $ui_url . '">' . $dataset_count . '</a>';
+            $chart_data_html[] = '<a href="' . $web_url . '">' . $dataset_count . '</a>';
 
-            $date = date('M Y', mktime(0, 0, 0, $month++, 1, $Year));
+            $date = date('M Y', mktime(0, 0, 0, $month, 1, $Year));
+
+            $organization['metrics'][] = array(
+                'title' => $date,
+                'from_date' => $startDt,
+                'till_date' => $endDt,
+                'api_url' => $api_url,
+                'web_url' => $web_url,
+                'count' => $dataset_count
+            );
+
+            $organization['total'] += $dataset_count;
+
+            if (isset($this->data_tree['total_by_month'][$date])) {
+                $this->data_tree['total_by_month'][$date] += $dataset_count;
+            } else {
+                $this->data_tree['total_by_month'][$date] = $dataset_count;
+            }
+
+            $this->data_tree['total'] += $dataset_count;
+
+            $month++;
         }
 
+        $this->data_tree['organizations'][] = $organization;
         $this->chart_by_month_data[] = $chart_data;
         $this->chart_by_month_data_html[] = $chart_data_html;
 
@@ -332,7 +370,17 @@ class MetricsCounterFullHistory
     /**
      *
      */
-    private function write_metrics_csv_and_xls()
+    private function write_metrics_files()
+    {
+        $this->write_metrics_csv();
+        $this->write_metrics_json();
+        $this->write_metrics_html();
+    }
+
+    /**
+     *
+     */
+    private function write_metrics_csv()
     {
         $upload_dir = wp_upload_dir();
 
@@ -363,7 +411,39 @@ class MetricsCounterFullHistory
         } else {
             echo '/federal-agency-participation-full-by-' . $this->date_field . '.csv done <br />';
         }
+    }
 
+    /**
+     *
+     */
+    private function write_metrics_json()
+    {
+        $upload_dir = wp_upload_dir();
+
+        $jsonPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-' . $this->date_field . '.json';
+        @chmod($jsonPath, 0666);
+        if (file_exists($jsonPath) && !is_writable($jsonPath)) {
+            die('could not write ' . $jsonPath);
+        }
+
+//    Write JSON result file
+        file_put_contents($jsonPath, json_encode($this->data_tree, JSON_PRETTY_PRINT));
+
+        @chmod($jsonPath, 0666);
+
+        if (!file_exists($jsonPath)) {
+            die('could not write ' . $jsonPath);
+        } else {
+            echo '/federal-agency-participation-full-by-' . $this->date_field . '.json done <br />';
+        }
+    }
+
+    /**
+     *
+     */
+    private function write_metrics_html()
+    {
+        $upload_dir = wp_upload_dir();
 
         $htmlPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-' . $this->date_field . '.html';
         @chmod($htmlPath, 0666);
