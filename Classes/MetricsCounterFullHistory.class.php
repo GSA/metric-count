@@ -92,6 +92,32 @@ class MetricsCounterFullHistory
     }
 
     /**
+     * @return array|bool|mixed|string
+     */
+    public static function get_metrics_per_month_full()
+    {
+        $upload_dir = wp_upload_dir();
+
+        $jsonPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-metadata_created.json';
+
+        if (!is_file($jsonPath) or !is_readable($jsonPath)) {
+            return false;
+        }
+
+        $metrics = file_get_contents($jsonPath);
+        if (!$metrics) {
+            return false;
+        }
+
+        $metrics = json_decode($metrics, true);
+        if (!$metrics) {
+            return false;
+        }
+
+        return $metrics;
+    }
+
+    /**
      *
      */
     public function generate_reports()
@@ -309,6 +335,8 @@ class MetricsCounterFullHistory
         $organization = array(
             'title' => $title,
             'total' => 0,
+            'web_url' => '',
+            'api_url' => '',
             'metrics' => array()
         );
         $chart_data = $chart_data_html = array($title);
@@ -325,11 +353,11 @@ class MetricsCounterFullHistory
 
             $range = "[" . $startDt . "%20TO%20" . $endDt . "]";
 
-            $api_url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+" . $this->date_field . ":{$range}&rows=0";
+            $api_url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+" . $this->date_field . ":{$range}";
             $web_url = $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+' . $this->date_field . ':' . $range;
 
             $this->debugStatsByMonth++;
-            $response = $this->curl->get($api_url);
+            $response = $this->curl->get($api_url . '&rows=0');
             $body = json_decode($response, true);
 
             $dataset_count = $body['result']['count'];
@@ -359,6 +387,12 @@ class MetricsCounterFullHistory
 
             $month++;
         }
+
+        $api_url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset";
+        $web_url = $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset';
+
+        $organization['api_url'] = $api_url;
+        $organization['web_url'] = $web_url;
 
         $this->data_tree['organizations'][] = $organization;
         $this->chart_by_month_data[] = $chart_data;

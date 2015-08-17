@@ -127,7 +127,7 @@ class MetricsCounter
      */
     public function updateMetrics()
     {
-        echo PHP_EOL.date("(Y-m-d H:i:s)").'(metrics-cron) Started'.PHP_EOL;
+        echo PHP_EOL . date("(Y-m-d H:i:s)") . '(metrics-cron) Started' . PHP_EOL;
         if (!$this->checkLock()) {
             echo "Locked: another instance of metrics script is already running. Please try again later";
 

@@ -25,11 +25,11 @@ function metric_configuration()
  */
 function metric_count_settings()
 {
-    
+
     $ckan_access_pt = (get_option('ckan_access_pt')) ? get_option('ckan_access_pt') : '//catalog.data.gov/';
     $org_server = (get_option('org_server')) ? get_option(
         'org_server'
-    ) :  'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
+    ) : 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
 
     $html = '<form action="options.php" method="post" name="options">
 			<h2>Metric Count Settings</h2>' . wp_nonce_field('update-options');
@@ -76,6 +76,9 @@ function get_ckan_metric_info()
     $MetricsCounter->updateMetrics();
 }
 
+/**
+ *
+ */
 function get_ckan_metric_info_full_history()
 {
     ignore_user_abort(true);
@@ -95,6 +98,16 @@ function get_ckan_metric_info_full_history()
 
 register_activation_hook(__FILE__, 'my_activation');
 add_action('metrics_daily_update', 'get_ckan_metric_info');
+add_action('metrics_full_daily_update', 'get_ckan_metric_info_full_history');
+
+/**
+ * @return array|bool|mixed|string
+ */
+function get_metrics_per_month_full()
+{
+    require_once 'Classes/MetricsCounterFullHistory.class.php';
+    return MetricsCounterFullHistory::get_metrics_per_month_full();
+}
 
 /**
  *
@@ -102,6 +115,7 @@ add_action('metrics_daily_update', 'get_ckan_metric_info');
 function my_activation()
 {
     wp_schedule_event(time(), 'daily', 'metrics_daily_update');
+    wp_schedule_event(time(), 'daily', 'metrics_full_daily_update');
 }
 
 register_deactivation_hook(__FILE__, 'my_deactivation');
@@ -112,5 +126,6 @@ register_deactivation_hook(__FILE__, 'my_deactivation');
 function my_deactivation()
 {
     wp_clear_scheduled_hook('metrics_daily_update');
+    wp_clear_scheduled_hook('metrics_full_daily_update');
 }
 
