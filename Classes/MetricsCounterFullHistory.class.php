@@ -37,19 +37,7 @@ class MetricsCounterFullHistory
     /**
      * @var array
      */
-    private $chart_by_month_data = array();
-    /**
-     * @var array
-     */
     private $data_tree;
-    /**
-     * @var array
-     */
-    private $chart_by_month_data_html = array();
-    /**
-     * @var array
-     */
-    private $chart_by_month_header = array();
     /**
      * @var int
      */
@@ -170,7 +158,7 @@ class MetricsCounterFullHistory
             /**
              * Collect statistics and create data for ROOT organization
              */
-            $parent_nid = $this->create_metric_content(
+            $this->create_metric_content(
                 $RootOrganization->getTitle(),
                 $solr_query
             );
@@ -227,8 +215,6 @@ class MetricsCounterFullHistory
 
         $count = $body['result']['count'];
 
-        $this->chart_by_month_header[] = 'AGENCY';
-
         if ($count) {
             $earliest_dataset_date = $body['result']['results'][0][$this->date_field];
 //        2013-12-12T07:39:40.341322
@@ -243,7 +229,6 @@ class MetricsCounterFullHistory
             $date = '';
             while ($date != $now) {
                 $date = date('M Y', mktime(0, 0, 0, $month++, 1, $Year));
-                $this->chart_by_month_header[] = $date;
             }
         } else {
             die($url . ' did not return `count` field');
@@ -339,7 +324,6 @@ class MetricsCounterFullHistory
             'api_url' => '',
             'metrics' => array()
         );
-        $chart_data = $chart_data_html = array($title);
 
         $now = date('M Y');
         $date = '';
@@ -361,8 +345,6 @@ class MetricsCounterFullHistory
             $body = json_decode($response, true);
 
             $dataset_count = $body['result']['count'];
-            $chart_data[] = $dataset_count;
-            $chart_data_html[] = '<a href="' . $web_url . '">' . $dataset_count . '</a>';
 
             $date = date('M Y', mktime(0, 0, 0, $month, 1, $Year));
 
@@ -394,9 +376,10 @@ class MetricsCounterFullHistory
         $organization['api_url'] = $api_url;
         $organization['web_url'] = $web_url;
 
-        $this->data_tree['organizations'][] = $organization;
-        $this->chart_by_month_data[] = $chart_data;
-        $this->chart_by_month_data_html[] = $chart_data_html;
+//        Skipping empty organizations
+        if ($organization['total']) {
+            $this->data_tree['organizations'][] = $organization;
+        }
 
         return 1;
     }
@@ -408,7 +391,6 @@ class MetricsCounterFullHistory
     {
         $this->write_metrics_csv();
         $this->write_metrics_json();
-        $this->write_metrics_html();
     }
 
     /**
@@ -431,11 +413,25 @@ class MetricsCounterFullHistory
             die("unable to create file");
         }
 
-        fputcsv($fp_csv, $this->chart_by_month_header);
+        $header = array_merge(
+            array('Agency'),
+            array_keys($this->data_tree['total_by_month']),
+            array('Total')
+        );
+        fputcsv($fp_csv, $header);
 
-        foreach ($this->chart_by_month_data as $data) {
-            fputcsv($fp_csv, $data);
+        foreach ($this->data_tree['organizations'] as $organization) {
+            if (!$organization['total']) {
+                continue;
+            }
+            $line = array($organization['title']);
+            foreach ($organization['metrics'] as $month) {
+                $line[] = $month['count'];
+            }
+            $line[] = $organization['total'];
+            fputcsv($fp_csv, $line);
         }
+
         fclose($fp_csv);
 
         @chmod($csvPath, 0666);
@@ -469,51 +465,6 @@ class MetricsCounterFullHistory
             die('could not write ' . $jsonPath);
         } else {
             echo '/federal-agency-participation-full-by-' . $this->date_field . '.json done <br />';
-        }
-    }
-
-    /**
-     *
-     */
-    private function write_metrics_html()
-    {
-        $upload_dir = wp_upload_dir();
-
-        $htmlPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-' . $this->date_field . '.html';
-        @chmod($htmlPath, 0666);
-        if (file_exists($htmlPath) && !is_writable($htmlPath)) {
-            die('could not write ' . $htmlPath);
-        }
-
-        $html = '<tr><th>' . join('</th><th>', $this->chart_by_month_header) . '</th></tr>' . PHP_EOL;
-        foreach ($this->chart_by_month_data_html as $row) {
-            $html .= '  <tr><td>' . join('</td><td>', $row) . '</td></tr>' . PHP_EOL;
-        }
-        $html = <<<END
-<html>
-    <head>
-        <style type="text/css">
-            tbody tr:nth-child(odd) {
-                background-color: #ddd;
-            }
-        </style>
-    </head>
-    <body>
-        <table>
-            $html
-        </table>
-    </body>
-</html>
-END;
-
-        file_put_contents($htmlPath, $html);
-
-        @chmod($htmlPath, 0666);
-
-        if (!file_exists($htmlPath)) {
-            die('could not write ' . $htmlPath);
-        } else {
-            echo '/federal-agency-participation-full-by-' . $this->date_field . '.html done <br />';
         }
     }
 
