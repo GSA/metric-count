@@ -121,10 +121,10 @@ class MetricsCounterFullHistory
 
         $this->generate_header();
 
-//    Get latest taxonomies from http://idm.data.gov/fed_agency.json
+        //    Get latest taxonomies from fed_agency.json
         $taxonomies = $this->ckan_metric_get_taxonomies();
 
-//    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
+        //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
         $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
         $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');

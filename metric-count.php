@@ -92,8 +92,8 @@ function get_ckan_metric_info_full_history()
     $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
     $MetricsCounterFullHistory->generate_reports();
 
-    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_modified');
-    $MetricsCounterFullHistory->generate_reports();
+//    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_modified');
+//    $MetricsCounterFullHistory->generate_reports();
 }
 
 register_activation_hook(__FILE__, 'my_activation');
