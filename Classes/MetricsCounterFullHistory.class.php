@@ -400,7 +400,9 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $csvPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.csv';
+
+        $csvPath = $upload_dir['basedir'] . '/' . $filename;
         @chmod($csvPath, 0666);
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
@@ -439,7 +441,51 @@ class MetricsCounterFullHistory
         if (!file_exists($csvPath)) {
             die('could not write ' . $csvPath);
         } else {
-            echo '/federal-agency-participation-full-by-' . $this->date_field . '.csv done <br />';
+            echo $filename . ' done <br />';
+        }
+
+        $this->upload_to_s3($csvPath, $filename);
+    }
+
+    /**
+     * @param $from_local_path
+     * @param $to_s3_path
+     * @param string $acl
+     */
+    private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
+    {
+        $s3 = new \Aws\S3\S3Client(array(
+            'version' => 'latest',
+            'region' => 'us-east-1'
+        ));
+
+
+        $s3_config = get_option('tantan_wordpress_s3');
+        if (!$s3_config) {
+            echo 's3 plugin is not configured';
+            return;
+        }
+
+        $s3_bucket = $s3_config['bucket'];
+        $s3_prefix = $s3_config['object-prefix'];
+
+//        avoiding tailing double-slash
+        $s3_prefix = rtrim($s3_prefix, '/') . '/';
+
+//        avoiding prefix slash
+        $to_s3_path = ltrim($to_s3_path, '/');
+
+        // Upload a publicly accessible file. The file size and type are determined by the SDK.
+        try {
+            $s3->putObject([
+                'Bucket' => $s3_bucket,
+                'Key' => $s3_prefix . $to_s3_path,
+                'Body' => fopen($from_local_path, 'r'),
+                'ACL' => $acl,
+            ]);
+        } catch (Aws\Exception\S3Exception $e) {
+            echo "There was an error uploading the file.\n";
+            return;
         }
     }
 
@@ -450,7 +496,9 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $jsonPath = $upload_dir['basedir'] . '/federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
+
+        $jsonPath = $upload_dir['basedir'] . '/';
         @chmod($jsonPath, 0666);
         if (file_exists($jsonPath) && !is_writable($jsonPath)) {
             die('could not write ' . $jsonPath);
@@ -464,8 +512,10 @@ class MetricsCounterFullHistory
         if (!file_exists($jsonPath)) {
             die('could not write ' . $jsonPath);
         } else {
-            echo '/federal-agency-participation-full-by-' . $this->date_field . '.json done <br />';
+            echo $filename . ' done <br />';
         }
+
+        $this->upload_to_s3($jsonPath, $filename);
     }
 
     /**

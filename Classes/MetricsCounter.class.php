@@ -812,7 +812,8 @@ class MetricsCounter
 
         $upload_dir = wp_upload_dir();
 
-        $csvPath = $upload_dir['basedir'] . '/federal-agency-participation.csv';
+        $csvFilename = 'federal-agency-participation.csv';
+        $csvPath = $upload_dir['basedir'] . '/' . $csvFilename;
         @chmod($csvPath, 0666);
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
@@ -837,6 +838,9 @@ class MetricsCounter
         if (!file_exists($csvPath)) {
             die('could not write ' . $csvPath);
         }
+
+        $this->upload_to_s3($csvPath, $csvFilename);
+
 
         // Instantiate a new PHPExcel object
         $objPHPExcel = new PHPExcel();
@@ -863,7 +867,8 @@ class MetricsCounter
 
         $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
 
-        $xlsPath = $upload_dir['basedir'] . '/federal-agency-participation.xls';
+        $xlsFilename = 'federal-agency-participation.xls';
+        $xlsPath = $upload_dir['basedir'] . '/' . $xlsFilename;
         @chmod($xlsPath, 0666);
         if (file_exists($xlsPath) && !is_writable($xlsPath)) {
             die('could not write ' . $xlsPath);
@@ -874,6 +879,50 @@ class MetricsCounter
 
         if (!file_exists($xlsPath)) {
             die('could not write ' . $xlsPath);
+        }
+
+        $this->upload_to_s3($xlsPath, $xlsFilename);
+    }
+
+    /**
+     * @param $from_local_path
+     * @param $to_s3_path
+     * @param string $acl
+     */
+    private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
+    {
+        $s3 = new \Aws\S3\S3Client(array(
+            'version' => 'latest',
+            'region' => 'us-east-1'
+        ));
+
+
+        $s3_config = get_option('tantan_wordpress_s3');
+        if (!$s3_config) {
+            echo 's3 plugin is not configured';
+            return;
+        }
+
+        $s3_bucket = $s3_config['bucket'];
+        $s3_prefix = $s3_config['object-prefix'];
+
+//        avoiding tailing double-slash
+        $s3_prefix = rtrim($s3_prefix, '/') . '/';
+
+//        avoiding prefix slash
+        $to_s3_path = ltrim($to_s3_path, '/');
+
+        // Upload a publicly accessible file. The file size and type are determined by the SDK.
+        try {
+            $s3->putObject([
+                'Bucket' => $s3_bucket,
+                'Key' => $s3_prefix . $to_s3_path,
+                'Body' => fopen($from_local_path, 'r'),
+                'ACL' => $acl,
+            ]);
+        } catch (Aws\Exception\S3Exception $e) {
+            echo "There was an error uploading the file.\n";
+            return;
         }
     }
 
