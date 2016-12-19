@@ -498,7 +498,7 @@ class MetricsCounterFullHistory
 
         $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
 
-        $jsonPath = $upload_dir['basedir'] . '/';
+        $jsonPath = $upload_dir['basedir'] . '/' . $filename;
         @chmod($jsonPath, 0666);
         if (file_exists($jsonPath) && !is_writable($jsonPath)) {
             die('could not write ' . $jsonPath);
