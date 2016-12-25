@@ -862,7 +862,7 @@ class MetricsCounter
 
         $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
 
-        $xlsFilename = 'federal-agency-participation.xls';
+        $xlsFilename = 'federal-agency-participation.xlsx';
         $xlsPath = $upload_dir['basedir'] . '/' . $xlsFilename;
         @chmod($xlsPath, 0666);
         if (file_exists($xlsPath) && !is_writable($xlsPath)) {
