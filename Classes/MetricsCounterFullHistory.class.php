@@ -4,6 +4,8 @@ require_once __DIR__ . '/CurlWrapper.class.php';
 require_once __DIR__ . '/MetricsTaxonomy.class.php';
 require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 
+use \Aws\Common\Aws;
+
 /**
  * Class MetricsCounter
  */
@@ -454,11 +456,13 @@ class MetricsCounterFullHistory
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {
-        $s3 = new \Aws\S3\S3Client(array(
-            'version' => 'latest',
-            'region' => 'us-east-1'
+        // Create a service locator using a configuration file
+        $aws = Aws::factory(array(
+            'region'  => 'us-east-1'
         ));
 
+        // Get client instances from the service locator by name
+        $s3 = $aws->get('s3');
 
         $s3_config = get_option('tantan_wordpress_s3');
         if (!$s3_config) {
