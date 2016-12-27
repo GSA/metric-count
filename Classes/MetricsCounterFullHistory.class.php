@@ -86,19 +86,14 @@ class MetricsCounterFullHistory
      */
     public static function get_metrics_per_month_full()
     {
-//        $upload_dir = wp_upload_dir();
-
         $s3_config = get_option('tantan_wordpress_s3');
-        $s3_bucket = $s3_config['bucket'];
-        $s3_prefix = $s3_config['object-prefix'];
+
+        $s3_bucket = trim($s3_config['bucket'], '/');
+        $s3_prefix = trim($s3_config['object-prefix'], '/');
 
         $s3_path = 'https://s3.amazonaws.com/' . $s3_bucket . '/' . $s3_prefix . '/';
 
         $jsonPath = $s3_path . 'federal-agency-participation-full-by-metadata_created.json';
-
-//        if (!is_file($jsonPath) or !is_readable($jsonPath)) {
-//            return false;
-//        }
 
         $metrics = file_get_contents($jsonPath);
         if (!$metrics) {
