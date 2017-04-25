@@ -71,9 +71,12 @@ function get_ckan_metric_info()
     set_time_limit(60 * 30);  //  30 minutes
 
     require_once 'Classes/MetricsCounter.class.php';
+    require_once 'Classes/MetricsCounterNonfed.class.php';
 
     $MetricsCounter = new MetricsCounter();
+    $MetricsCounterNonFed = new MetricsCounterNonFed();
     $MetricsCounter->updateMetrics();
+    $MetricsCounterNonFed->updateMetrics();
 }
 
 /**
