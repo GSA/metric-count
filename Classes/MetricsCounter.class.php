@@ -4,7 +4,6 @@ require_once __DIR__ . '/MetricsTaxonomy.class.php';
 require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 
 use \Aws\Common\Aws;
-
 /**
  * Class MetricsCounter
  */
@@ -143,7 +142,7 @@ class MetricsCounter
         $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
         $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
-
+        
         /** @var MetricsTaxonomy $RootOrganization */
         foreach ($FederalOrganizationTree as $RootOrganization) {
 //        skip broken structures
@@ -173,6 +172,7 @@ class MetricsCounter
             /**
              * Collect statistics and create data for ROOT organization
              */
+
             $parent_nid = $this->create_metric_content(
                 $RootOrganization->getIsCfo(),
                 $RootOrganization->getTitle(),
@@ -723,7 +723,7 @@ class MetricsCounter
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
         $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
-        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
+        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=[%22publisher%22]&facet.limit=200";
 
         $this->stats++;
 
@@ -886,6 +886,7 @@ class MetricsCounter
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {
+        // if (WP_ENV !== 'production') { return;} 
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
             'region'  => 'us-east-1'
