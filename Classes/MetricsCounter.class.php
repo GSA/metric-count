@@ -723,7 +723,7 @@ class MetricsCounter
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
         $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
-        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
+        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=[%22publisher%22]&facet.limit=200";
 
         $this->stats++;
 
