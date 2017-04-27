@@ -145,25 +145,6 @@ class MetricsCounterNonFed
         /** @var MetricsTaxonomy $RootOrganization */
         foreach ($AllCategories as $OneOrganization) {
 //        skip broken structures
-//             if (!$RootOrganization->getTerm()) {
-//                 /**
-//                  * Ugly TEMPORARY hack for missing
-//                  * Executive Office of the President [eop-gov]
-//                  */
-//                 try {
-//                     $children = $RootOrganization->getTerms();
-//                     $firstChildTerm = trim($children[0], '(")');
-//                     list (, $fed, $gov) = explode('-', $firstChildTerm);
-//                     if (!$fed || !$gov) {
-//                         continue;
-//                     }
-//                     $RootOrganization->setTerm("$fed-$gov");
-// //                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
-//                 } catch (Exception $ex) {
-// //                    didn't help. Skip
-//                     continue;
-//                 }
-//             }
 
             // $solr_terms = join('+OR+', $RootOrganization->getTerms());
             $solr_terms = $OneOrganization['name'];
@@ -577,9 +558,11 @@ class MetricsCounterNonFed
         } elseif( $category == "Non-Profit") {
             $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
         } elseif( $category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Other');
+            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
+        } elseif( $category == "State") {
+            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
         } elseif( $category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Government');
+            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
         } elseif( $category == "Tribal") {
             $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
         } elseif( $category == "University") {
@@ -703,10 +686,12 @@ class MetricsCounterNonFed
         } elseif( $category == "Non-Profit") {
             $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
         } elseif( $category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Other');
+            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
+        } elseif( $category == "State") {
+            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
         } elseif( $category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Government');
-        } elseif( $category == "Tribal") {
+            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
+        }  elseif( $category == "Tribal") {
             $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
         } elseif( $category == "University") {
             $this->update_post_meta($content_id, 'metric_sector', 'University');
@@ -738,12 +723,16 @@ class MetricsCounterNonFed
     {
 //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
         $ckan_organization = 'organization:' . urlencode($RootOrganization['name']) . '+AND+type:dataset';
-        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=publisher&facet.limit=200";
-
+        $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=[%22publisher%22]&facet.limit=200";
         $this->stats++;
 
         $response = $this->curl_get($url);
         $body = json_decode($response, true);
+
+        error_log("body nonfed");
+        error_log($url);
+        error_log(print_r($response, true));
+        error_log(print_r($body, true));
 
         if (!isset($body['result']['facets']['publisher'])) {
             return;
@@ -779,18 +768,20 @@ class MetricsCounterNonFed
             $category = $RootOrganization['organization_type'];
             if($category == "City Government"){
                 $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-            } elseif( $category == "Cooperative") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
             } elseif( $category == "Commercial") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
+            } elseif( $category == "Cooperative") {
+                $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
             } elseif( $category == "County Government") {
                 $this->update_post_meta($content_id, 'metric_sector', 'County Government');
             } elseif( $category == "Non-Profit") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
             } elseif( $category == "Other") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Other');
+                $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
+            } elseif( $category == "State") {
+                $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
             } elseif( $category == "State Government") {
-                $this->update_post_meta($content_id, 'metric_sector', 'State Government');
+                $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
             } elseif( $category == "Tribal") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
             } elseif( $category == "University") {
