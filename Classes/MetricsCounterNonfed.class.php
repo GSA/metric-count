@@ -176,10 +176,10 @@ class MetricsCounterNonFed
             /**
              * Get publishers by organization
              */
-            $this->create_metric_content_by_publishers(
-                $OneOrganization,
-                $parent_nid
-            );
+            // $this->create_metric_content_by_publishers(
+            //     $OneOrganization,
+            //     $parent_nid
+            // );
 
         }
 
@@ -597,14 +597,14 @@ class MetricsCounterNonFed
         $flag = false;
         if ($count > 0) {
             if ($export != 0) {
-                $this->results[] = array($parent_name, $title, $count, $last_entry);
+                $this->results[] = array($parent_name, $title, $category, $count, $last_entry);
             }
 
             if ($parent_node == 0 && $flag == false) {
                 $parent_name = $title;
                 $title = '';
 
-                $this->results[] = array($parent_name, $title, $count, $last_entry);
+                $this->results[] = array($parent_name, $title, $category, $count, $last_entry);
             }
         }
 
@@ -710,7 +710,7 @@ class MetricsCounterNonFed
             $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
         }
 
-        $this->results[] = array($RootOrganization['title'], trim($publisherTitle), $count, $last_entry);
+        $this->results[] = array($RootOrganization['title'], trim($publisherTitle), $category, $count, $last_entry);
     }
 
     /**
@@ -728,11 +728,6 @@ class MetricsCounterNonFed
 
         $response = $this->curl_get($url);
         $body = json_decode($response, true);
-
-        error_log("body nonfed");
-        error_log($url);
-        error_log(print_r($response, true));
-        error_log(print_r($body, true));
 
         if (!isset($body['result']['facets']['publisher'])) {
             return;
@@ -812,7 +807,7 @@ class MetricsCounterNonFed
                 $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
             }
 
-            $this->results[] = array($RootOrganization['title'], trim($publisherTitle), $count, $last_entry);
+            $this->results[] = array($RootOrganization['title'], trim($publisherTitle),$category, $count, $last_entry);
         }
 
         return;
@@ -821,6 +816,8 @@ class MetricsCounterNonFed
     /**
      *
      */
+
+    //This function has been modified to create nonfed csv and xls and also a combined fed-nonfed csv and xls files.
     private function write_metrics_csv_and_xls()
     {
         asort($this->results);
@@ -828,8 +825,13 @@ class MetricsCounterNonFed
 
         $upload_dir = wp_upload_dir();
 
-        $csvFilename = 'non-federal-agency-participation.csv';
-        $csvPath = $upload_dir['basedir'] . '/' . $csvFilename;
+        $csvFilenameNonFed = 'non-federal-agency-participation.csv';
+        $csvFilenameFed = 'federal-agency-participation.csv';
+        $csvAgencyParticipation = 'agency-participation.csv';
+        $csvPath = $upload_dir['basedir'] . '/' . $csvFilenameNonFed;
+        $csvPathFed = $upload_dir['basedir'] . '/' . $csvFilenameFed;
+        $csvPathAgencyParticipation = $upload_dir['basedir'] . '/' . $csvAgencyParticipation;
+
         @chmod($csvPath, 0666);
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
@@ -842,12 +844,13 @@ class MetricsCounterNonFed
             die("unable to create file");
         }
 
-        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Datasets', 'Last Entry'));
+        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Organization Type', 'Datasets', 'Last Entry'));
 
         foreach ($this->results as $record) {
             fputcsv($fp_csv, $record);
         }
         fclose($fp_csv);
+
 
         @chmod($csvPath, 0666);
 
@@ -855,9 +858,30 @@ class MetricsCounterNonFed
             die('could not write ' . $csvPath);
         }
 
-        $this->upload_to_s3($csvPath, $csvFilename);
+        $this->upload_to_s3($csvPath, $csvFilenameNonFed);
+        // This function combines two csv files. Fed and Nonfed Agency Participation csv
+        function joinFiles(array $files, $result) {
+            if(!is_array($files)) {
+                throw new Exception('`$files` must be an array');
+            }
 
+            $wH = fopen($result, "w+");
 
+            foreach($files as $file) {
+                $fh = fopen($file, "r");
+                while(!feof($fh)) {
+                    fwrite($wH, fgets($fh));
+                }
+                fclose($fh);
+                unset($fh);
+                fwrite($wH, "\n");
+            }
+            fclose($wH);
+            unset($wH);
+        }
+        joinFiles(array($csvPathFed, $csvPath), $csvPathAgencyParticipation);
+        // NOT SURE IF THIS LINE IS WORKING--------------------------------
+        $this->upload_to_s3($csvPathAgencyParticipation, $csvAgencyParticipation);
         // Instantiate a new PHPExcel object
         $objPHPExcel = new PHPExcel();
         // Set the active Excel worksheet to sheet 0
@@ -867,16 +891,18 @@ class MetricsCounterNonFed
 
         $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, 'Agency Name');
         $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, 'Sub-Agency/Publisher');
-        $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Datasets');
-        $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Last Entry');
+        $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Organization Type');
+        $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Datasets');
+        $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, 'Last Entry');
         $row++;
 
         foreach ($this->results as $record) {
             if ($record) {
                 $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, trim($record[0]));
                 $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, trim($record[1]));
-                $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, $record[2]);
+                $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, trim($record[2]));
                 $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, $record[3]);
+                $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, $record[4]);
                 $row++;
             }
         }
@@ -898,6 +924,32 @@ class MetricsCounterNonFed
         }
 
         $this->upload_to_s3($xlsPath, $xlsFilename);
+        // This here combines the Fed/NonFed xls into one file
+        $xlsFed = 'federal-agency-participation.xlsx';
+        $xlsNonFed = $xlsFilename;
+        $xlsFedPath = $upload_dir['basedir'] . '/' . $xlsFed;
+        $xlsNonFedPath = $xlsPath;
+        $xlsAgencyParticipation = 'agency-participation.xlsx';
+        $xlsAgencyParticipationPath = $upload_dir['basedir'] . '/' . $xlsAgencyParticipation;
+
+        $objPHPExcelFed = PHPExcel_IOFactory::load($xlsFedPath);
+        $objPHPExcelNonFed = PHPExcel_IOFactory::load($xlsNonFedPath);
+        $objPHPExcelFed->setActiveSheetIndex(0);
+        $objPHPExcelNonFed->setActiveSheetIndex(0);
+        // Find the last cell in the second spreadsheet
+        $findEndDataRow = $objPHPExcelNonFed->getActiveSheet()->getHighestRow();
+        $findEndDataColumn = $objPHPExcelNonFed->getActiveSheet()->getHighestColumn();
+        $findEndData = $findEndDataColumn . $findEndDataRow;
+        // Read all the data from second spreadsheet to a normal PHP array skipping the headers in row 1
+        $beeData = $objPHPExcelNonFed->getActiveSheet()->rangeToArray('A2:' . $findEndData);
+        // Identify the row in the first spreadsheet where we want to start adding merged bee data without overwriting any bird data
+        $appendStartRow = $objPHPExcelFed->getActiveSheet()->getHighestRow() + 1;
+        // Add bee data from the PHP array into the bird data
+        $objPHPExcelFed->getActiveSheet()->fromArray($beeData, null, 'A' . $appendStartRow);
+        $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcelFed, "Excel2007");
+        $objWriter->save($xlsAgencyParticipationPath);
+        // Check this line below-----------------------------------------------
+        $this->upload_to_s3($xlsAgencyParticipationPath, $xlsAgencyParticipation);
     }
 
     /**

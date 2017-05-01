@@ -582,8 +582,10 @@ class MetricsCounter
 
         if ($cfo == 'Y') {
             $this->update_post_meta($content_id, 'metric_sector', 'Federal');
+            $organization_type = 'Federal';
         } else {
             $this->update_post_meta($content_id, 'metric_sector', 'Other');
+            $organization_type = 'Federal-Other';
         }
 
         $this->update_post_meta($content_id, 'ckan_unique_id', $ckan_id);
@@ -614,14 +616,14 @@ class MetricsCounter
         $flag = false;
         if ($count > 0) {
             if ($export != 0) {
-                $this->results[] = array($parent_name, $title, $count, $last_entry);
+                $this->results[] = array($parent_name, $title, $organization_type, $count, $last_entry);
             }
 
             if ($parent_node == 0 && $flag == false) {
                 $parent_name = $title;
                 $title = '';
 
-                $this->results[] = array($parent_name, $title, $count, $last_entry);
+                $this->results[] = array($parent_name, $title, $organization_type, $count, $last_entry);
             }
         }
 
@@ -693,8 +695,10 @@ class MetricsCounter
 
         if ('Y' == $RootOrganization->getIsCfo()) {
             $this->update_post_meta($content_id, 'metric_sector', 'Federal');
+            $organization_type = 'Federal';
         } else {
             $this->update_post_meta($content_id, 'metric_sector', 'Other');
+            $organization_type = 'Federal-Other';
         }
 
         $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
@@ -710,7 +714,7 @@ class MetricsCounter
             $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
         }
 
-        $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $count, $last_entry);
+        $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $organization_type, $count, $last_entry);
     }
 
     /**
@@ -763,8 +767,10 @@ class MetricsCounter
 
             if ('Y' == $RootOrganization->getIsCfo()) {
                 $this->update_post_meta($content_id, 'metric_sector', 'Federal');
+                $organization_type = 'Federal';
             } else {
                 $this->update_post_meta($content_id, 'metric_sector', 'Other');
+                $organization_type = 'Federal-Other';
             }
 
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
@@ -791,7 +797,7 @@ class MetricsCounter
                 $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
             }
 
-            $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $count, $last_entry);
+            $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $organization_type, $count, $last_entry);
         }
 
         return;
@@ -821,7 +827,7 @@ class MetricsCounter
             die("unable to create file");
         }
 
-        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Datasets', 'Last Entry'));
+        fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Organization Type', 'Datasets', 'Last Entry'));
 
         foreach ($this->results as $record) {
             fputcsv($fp_csv, $record);
@@ -846,16 +852,18 @@ class MetricsCounter
 
         $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, 'Agency Name');
         $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, 'Sub-Agency/Publisher');
-        $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Datasets');
-        $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Last Entry');
+        $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Organization Type');
+        $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Datasets');
+        $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, 'Last Entry');
         $row++;
 
         foreach ($this->results as $record) {
             if ($record) {
                 $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, trim($record[0]));
                 $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, trim($record[1]));
-                $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, $record[2]);
+                $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, trim($record[2]));
                 $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, $record[3]);
+                $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, $record[4]);
                 $row++;
             }
         }
@@ -886,7 +894,7 @@ class MetricsCounter
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {
-        // if (WP_ENV !== 'production') { return;} 
+        if (WP_ENV !== 'production') { return;} 
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
             'region'  => 'us-east-1'
