@@ -62,7 +62,7 @@ class MetricsCounterFullHistory
         $this->date_field = $date_field;
         $this->idm_json_url = get_option('org_server');
         if (!$this->idm_json_url) {
-            $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
+            $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
         }
 
         $this->data_tree = array(
@@ -456,9 +456,9 @@ class MetricsCounterFullHistory
      * @param string $acl
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
-    {
+    {   
         if (WP_ENV !== 'production') { return; };
-
+        
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
             'region' => 'us-east-1'
