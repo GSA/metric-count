@@ -880,8 +880,9 @@ class MetricsCounterNonFed
             unset($wH);
         }
         joinFiles(array($csvPathFed, $csvPath), $csvPathAgencyParticipation);
-        // NOT SURE IF THIS LINE IS WORKING--------------------------------
+        // NOT SURE IF THIS LINE BELOW IS WORKING--------------------------------
         $this->upload_to_s3($csvPathAgencyParticipation, $csvAgencyParticipation);
+
         // Instantiate a new PHPExcel object
         $objPHPExcel = new PHPExcel();
         // Set the active Excel worksheet to sheet 0
@@ -924,10 +925,11 @@ class MetricsCounterNonFed
         }
 
         $this->upload_to_s3($xlsPath, $xlsFilename);
+        
         // This here combines the Fed/NonFed xls into one file
         $xlsFed = 'federal-agency-participation.xlsx';
-        $xlsNonFed = $xlsFilename;
         $xlsFedPath = $upload_dir['basedir'] . '/' . $xlsFed;
+        $xlsNonFed = $xlsFilename;
         $xlsNonFedPath = $xlsPath;
         $xlsAgencyParticipation = 'agency-participation.xlsx';
         $xlsAgencyParticipationPath = $upload_dir['basedir'] . '/' . $xlsAgencyParticipation;
