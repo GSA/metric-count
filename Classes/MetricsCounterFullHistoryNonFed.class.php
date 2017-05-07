@@ -552,9 +552,17 @@ class MetricsCounterFullHistoryNonFed
 
         $this->upload_to_s3($jsonPath, $filename);
 
+        // Combine Fed and Nonfed json files to one file
         $jsonFed = json_decode(file_get_contents($jsonPathFed), TRUE);
         $jsonNonFed = json_decode(file_get_contents($jsonPath), TRUE);
         $jsonAll = array_merge_recursive($jsonFed, $jsonNonFed);
+
+        $jsonAll['total'] = $jsonAll['total'][0] + $jsonAll['total'][1];
+        $jsonAll['updated_at'] = $jsonAll['updated_at'][1];
+        
+        foreach ($jsonAll['total_by_month'] as $month => $valuesArray) {
+            $jsonAll['total_by_month'][$month] = $valuesArray[0] + $valuesArray[1];
+        }
 
         file_put_contents($jsonPathFullHistory, json_encode($jsonAll, JSON_PRETTY_PRINT));
 
