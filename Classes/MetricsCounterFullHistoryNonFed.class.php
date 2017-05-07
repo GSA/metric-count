@@ -9,7 +9,7 @@ use \Aws\Common\Aws;
 /**
  * Class MetricsCounter
  */
-class MetricsCounterFullHistory
+class MetricsCounterFullHistoryNonFed
 {
     /**
      *
@@ -60,7 +60,7 @@ class MetricsCounterFullHistory
     function __construct($date_field = 'metadata_created')
     {
         $this->date_field = $date_field;
-        $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true'
+        $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
 
         // $this->idm_json_url = get_option('org_server');
         // if (!$this->idm_json_url) {
@@ -94,7 +94,7 @@ class MetricsCounterFullHistory
         $s3_prefix = trim($s3_config['object-prefix'], '/');
 
         $s3_path = 'https://s3.amazonaws.com/' . $s3_bucket . '/' . $s3_prefix . '/';
-
+        #CHECK THIS
         $jsonPath = $s3_path . 'federal-agency-participation-full-by-metadata_created.json';
 
         $metrics = file_get_contents($jsonPath);
@@ -127,44 +127,25 @@ class MetricsCounterFullHistory
         $this->generate_header();
 
         //    Get latest taxonomies from fed_agency.json
-        $taxonomies = $this->ckan_metric_get_taxonomies();
+        $NonFedCategories = $this->ckan_metric_get_taxonomies();
 
         //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
-        $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
+        // $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
-        $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
+        // $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
 
         /** @var MetricsTaxonomy $RootOrganization */
-        foreach ($FederalOrganizationTree as $RootOrganization) {
+        foreach ($NonFedCategories as $OneOrganization) {
 //        skip broken structures
-            if (!$RootOrganization->getTerm()) {
-                /**
-                 * Ugly TEMPORARY hack for missing
-                 * Executive Office of the President [eop-gov]
-                 */
-                try {
-                    $children = $RootOrganization->getTerms();
-                    $firstChildTerm = trim($children[0], '(")');
-                    list (, $fed, $gov) = explode('-', $firstChildTerm);
-                    if (!$fed || !$gov) {
-                        continue;
-                    }
-                    $RootOrganization->setTerm("$fed-$gov");
-//                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
-                } catch (Exception $ex) {
-//                    didn't help. Skip
-                    continue;
-                }
-            }
 
-            $solr_terms = join('+OR+', $RootOrganization->getTerms());
+            $solr_terms = $OneOrganization['name'];
             $solr_query = "organization:({$solr_terms})";
 
             /**
              * Collect statistics and create data for ROOT organization
              */
             $this->create_metric_content(
-                $RootOrganization->getTitle(),
+                $OneOrganization['title'],
                 $solr_query
             );
         }
@@ -245,12 +226,18 @@ class MetricsCounterFullHistory
      */
     private function ckan_metric_get_taxonomies()
     {
+        $NonFedCategories = array();
         $response = $this->curl->get($this->idm_json_url);
         $body = json_decode($response, true);
-        // CHECKPOINT
-        $taxonomies = $body['taxonomies'];
+        $organizations = $body['result'];
 
-        return $taxonomies;
+        foreach ($organizations as $organization) {
+            if($organization['organization_type'] != "Federal Government") {
+                array_push($NonFedCategories, $organization);
+            }
+        }
+
+        return $NonFedCategories;
     }
 
     /**
@@ -406,7 +393,7 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.csv';
 
         $csvPath = $upload_dir['basedir'] . '/' . $filename;
         @chmod($csvPath, 0666);
@@ -506,7 +493,7 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.json';
 
         $jsonPath = $upload_dir['basedir'] . '/' . $filename;
         @chmod($jsonPath, 0666);
