@@ -394,9 +394,16 @@ class MetricsCounterFullHistoryNonFed
         $upload_dir = wp_upload_dir();
 
         $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $filenameFed = 'federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $csvFullHistory = 'agency-participation-full-by-' . $this->date_field . '.csv';
 
         $csvPath = $upload_dir['basedir'] . '/' . $filename;
+        $csvPathFed = $upload_dir['basedir'] . '/' . $filenameFed;
+        $csvPathFullHistory = $upload_dir['basedir'] . '/' . $csvFullHistory;
+
         @chmod($csvPath, 0666);
+        @chmod($csvPathFed, 0666);
+
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
         }
@@ -438,6 +445,30 @@ class MetricsCounterFullHistoryNonFed
         }
 
         $this->upload_to_s3($csvPath, $filename);
+
+        // This function combines two csv files. Fed and Nonfed Agency Participation csv
+        function joinFiles(array $files, $result) {
+            if(!is_array($files)) {
+                throw new Exception('`$files` must be an array');
+            }
+
+            $wH = fopen($result, "w+");
+
+            foreach($files as $file) {
+                $fh = fopen($file, "r");
+                while(!feof($fh)) {
+                    fwrite($wH, fgets($fh));
+                }
+                fclose($fh);
+                unset($fh);
+                fwrite($wH, "\n");
+            }
+            fclose($wH);
+            unset($wH);
+        }
+        joinFiles(array($csvPathFed, $csvPath), $csvPathFullHistory);
+        // NOT SURE IF THIS LINE BELOW IS WORKING--------------------------------
+        $this->upload_to_s3($csvPathFullHistory, $csvFullHistory);
     }
 
     /**
@@ -494,9 +525,16 @@ class MetricsCounterFullHistoryNonFed
         $upload_dir = wp_upload_dir();
 
         $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $filenameFed = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $jsonFullHistory = 'agency-participation-full-by-' . $this->date_field . '.json';
 
         $jsonPath = $upload_dir['basedir'] . '/' . $filename;
+        $jsonPathFed = $upload_dir['basedir'] . '/' . $filenameFed;
+        $jsonPathFullHistory = $upload_dir['basedir'] . '/' . $jsonFullHistory;
+
         @chmod($jsonPath, 0666);
+        @chmod($jsonPathFed, 0666);
+
         if (file_exists($jsonPath) && !is_writable($jsonPath)) {
             die('could not write ' . $jsonPath);
         }
@@ -513,6 +551,15 @@ class MetricsCounterFullHistoryNonFed
         }
 
         $this->upload_to_s3($jsonPath, $filename);
+
+        $jsonFed = json_decode(file_get_contents($jsonPathFed), TRUE);
+        $jsonNonFed = json_decode(file_get_contents($jsonPath), TRUE);
+        $jsonAll = array_merge_recursive($jsonFed, $jsonNonFed);
+
+        file_put_contents($jsonPathFullHistory, json_encode($jsonAll, JSON_PRETTY_PRINT));
+
+        // CHECK THIS
+        $this->upload_to_s3($jsonPathFullHistory, $jsonFullHistory);
     }
 
     /**
