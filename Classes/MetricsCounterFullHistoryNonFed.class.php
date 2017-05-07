@@ -60,10 +60,12 @@ class MetricsCounterFullHistory
     function __construct($date_field = 'metadata_created')
     {
         $this->date_field = $date_field;
-        $this->idm_json_url = get_option('org_server');
-        if (!$this->idm_json_url) {
-            $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
-        }
+        $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true'
+
+        // $this->idm_json_url = get_option('org_server');
+        // if (!$this->idm_json_url) {
+        //     $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
+        // }
 
         $this->data_tree = array(
             'total' => 0,
@@ -245,6 +247,7 @@ class MetricsCounterFullHistory
     {
         $response = $this->curl->get($this->idm_json_url);
         $body = json_decode($response, true);
+        // CHECKPOINT
         $taxonomies = $body['taxonomies'];
 
         return $taxonomies;

@@ -127,6 +127,7 @@ class MetricsCounterFullHistory
         //    Get latest taxonomies from fed_agency.json
         $taxonomies = $this->ckan_metric_get_taxonomies();
 
+        error_log("checkpoint 1");
         //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
         $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
@@ -140,19 +141,19 @@ class MetricsCounterFullHistory
                  * Ugly TEMPORARY hack for missing
                  * Executive Office of the President [eop-gov]
                  */
-                try {
-                    $children = $RootOrganization->getTerms();
-                    $firstChildTerm = trim($children[0], '(")');
-                    list (, $fed, $gov) = explode('-', $firstChildTerm);
-                    if (!$fed || !$gov) {
-                        continue;
-                    }
-                    $RootOrganization->setTerm("$fed-$gov");
-//                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
-                } catch (Exception $ex) {
-//                    didn't help. Skip
-                    continue;
-                }
+//                 try {
+//                     $children = $RootOrganization->getTerms();
+//                     $firstChildTerm = trim($children[0], '(")');
+//                     list (, $fed, $gov) = explode('-', $firstChildTerm);
+//                     if (!$fed || !$gov) {
+//                         continue;
+//                     }
+//                     $RootOrganization->setTerm("$fed-$gov");
+// //                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
+//                 } catch (Exception $ex) {
+// //                    didn't help. Skip
+//                     continue;
+//                 }
             }
 
             $solr_terms = join('+OR+', $RootOrganization->getTerms());
@@ -167,10 +168,16 @@ class MetricsCounterFullHistory
             );
         }
 
+        error_log("checkpoint 2");
+
         $this->write_metrics_files();
+
+        error_log("checkpoint 3");
 
         echo '<hr />get count: ' . $this->debugStats . ' times<br />';
         echo 'get count by month: ' . $this->debugStatsByMonth . ' times<br />';
+
+        error_log("checkpoint 4");
 
         $this->unlock();
     }
