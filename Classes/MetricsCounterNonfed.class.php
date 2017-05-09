@@ -176,10 +176,10 @@ class MetricsCounterNonFed
             /**
              * Get publishers by organization
              */
-            // $this->create_metric_content_by_publishers(
-            //     $OneOrganization,
-            //     $parent_nid
-            // );
+            $this->create_metric_content_by_publishers(
+                $OneOrganization,
+                $parent_nid
+            );
 
         }
 
