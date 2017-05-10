@@ -880,7 +880,7 @@ class MetricsCounterNonFed
             unset($wH);
         }
         joinFiles(array($csvPathFed, $csvPath), $csvPathAgencyParticipation);
-        // NOT SURE IF THIS LINE BELOW IS WORKING--------------------------------
+
         $this->upload_to_s3($csvPathAgencyParticipation, $csvAgencyParticipation);
 
         // Instantiate a new PHPExcel object
@@ -950,7 +950,7 @@ class MetricsCounterNonFed
         $objPHPExcelFed->getActiveSheet()->fromArray($beeData, null, 'A' . $appendStartRow);
         $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcelFed, "Excel2007");
         $objWriter->save($xlsAgencyParticipationPath);
-        // Check this line below-----------------------------------------------
+
         $this->upload_to_s3($xlsAgencyParticipationPath, $xlsAgencyParticipation);
     }
 
