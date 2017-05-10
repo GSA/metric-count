@@ -93,7 +93,7 @@ class MetricsCounterFullHistory
 
         $s3_path = 'https://s3.amazonaws.com/' . $s3_bucket . '/' . $s3_prefix . '/';
 
-        $jsonPath = $s3_path . 'federal-agency-participation-full-by-metadata_created.json';
+        $jsonPath = $s3_path . 'agency-participation-full-by-metadata_created.json';
 
         $metrics = file_get_contents($jsonPath);
         if (!$metrics) {
