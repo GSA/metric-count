@@ -9,7 +9,7 @@ use \Aws\Common\Aws;
 /**
  * Class MetricsCounter
  */
-class MetricsCounterFullHistory
+class MetricsCounterFullHistoryNonFed
 {
     /**
      *
@@ -60,10 +60,12 @@ class MetricsCounterFullHistory
     function __construct($date_field = 'metadata_created')
     {
         $this->date_field = $date_field;
-        $this->idm_json_url = get_option('org_server');
-        if (!$this->idm_json_url) {
-            $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
-        }
+        $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
+
+        // $this->idm_json_url = get_option('org_server');
+        // if (!$this->idm_json_url) {
+        //     $this->idm_json_url = 'https://catalog.data.gov/api/3/action/organization_list?all_fields=true';
+        // }
 
         $this->data_tree = array(
             'total' => 0,
@@ -92,8 +94,8 @@ class MetricsCounterFullHistory
         $s3_prefix = trim($s3_config['object-prefix'], '/');
 
         $s3_path = 'https://s3.amazonaws.com/' . $s3_bucket . '/' . $s3_prefix . '/';
-
-        $jsonPath = $s3_path . 'agency-participation-full-by-metadata_created.json';
+        #CHECK THIS
+        $jsonPath = $s3_path . 'federal-agency-participation-full-by-metadata_created.json';
 
         $metrics = file_get_contents($jsonPath);
         if (!$metrics) {
@@ -125,44 +127,25 @@ class MetricsCounterFullHistory
         $this->generate_header();
 
         //    Get latest taxonomies from fed_agency.json
-        $taxonomies = $this->ckan_metric_get_taxonomies();
+        $NonFedCategories = $this->ckan_metric_get_taxonomies();
 
         //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
-        $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
+        // $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
-        $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
+        // $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
 
         /** @var MetricsTaxonomy $RootOrganization */
-        foreach ($FederalOrganizationTree as $RootOrganization) {
+        foreach ($NonFedCategories as $OneOrganization) {
 //        skip broken structures
-            if (!$RootOrganization->getTerm()) {
-                /**
-                 * Ugly TEMPORARY hack for missing
-                 * Executive Office of the President [eop-gov]
-                 */
-                try {
-                    $children = $RootOrganization->getTerms();
-                    $firstChildTerm = trim($children[0], '(")');
-                    list (, $fed, $gov) = explode('-', $firstChildTerm);
-                    if (!$fed || !$gov) {
-                        continue;
-                    }
-                    $RootOrganization->setTerm("$fed-$gov");
-//                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
-                } catch (Exception $ex) {
-//                    didn't help. Skip
-                    continue;
-                }
-            }
 
-            $solr_terms = join('+OR+', $RootOrganization->getTerms());
+            $solr_terms = $OneOrganization['name'];
             $solr_query = "organization:({$solr_terms})";
 
             /**
              * Collect statistics and create data for ROOT organization
              */
             $this->create_metric_content(
-                $RootOrganization->getTitle(),
+                $OneOrganization['title'],
                 $solr_query
             );
         }
@@ -243,11 +226,18 @@ class MetricsCounterFullHistory
      */
     private function ckan_metric_get_taxonomies()
     {
+        $NonFedCategories = array();
         $response = $this->curl->get($this->idm_json_url);
         $body = json_decode($response, true);
-        $taxonomies = $body['taxonomies'];
+        $organizations = $body['result'];
 
-        return $taxonomies;
+        foreach ($organizations as $organization) {
+            if($organization['organization_type'] != "Federal Government") {
+                array_push($NonFedCategories, $organization);
+            }
+        }
+
+        return $NonFedCategories;
     }
 
     /**
@@ -403,10 +393,17 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $filenameFed = 'federal-agency-participation-full-by-' . $this->date_field . '.csv';
+        $csvFullHistory = 'agency-participation-full-by-' . $this->date_field . '.csv';
 
         $csvPath = $upload_dir['basedir'] . '/' . $filename;
+        $csvPathFed = $upload_dir['basedir'] . '/' . $filenameFed;
+        $csvPathFullHistory = $upload_dir['basedir'] . '/' . $csvFullHistory;
+
         @chmod($csvPath, 0666);
+        @chmod($csvPathFed, 0666);
+
         if (file_exists($csvPath) && !is_writable($csvPath)) {
             die('could not write ' . $csvPath);
         }
@@ -448,6 +445,30 @@ class MetricsCounterFullHistory
         }
 
         $this->upload_to_s3($csvPath, $filename);
+
+        // This function combines two csv files. Fed and Nonfed Agency Participation csv
+        function joinFiles(array $files, $result) {
+            if(!is_array($files)) {
+                throw new Exception('`$files` must be an array');
+            }
+
+            $wH = fopen($result, "w+");
+
+            foreach($files as $file) {
+                $fh = fopen($file, "r");
+                while(!feof($fh)) {
+                    fwrite($wH, fgets($fh));
+                }
+                fclose($fh);
+                unset($fh);
+                fwrite($wH, "\n");
+            }
+            fclose($wH);
+            unset($wH);
+        }
+        joinFiles(array($csvPathFed, $csvPath), $csvPathFullHistory);
+        // NOT SURE IF THIS LINE BELOW IS WORKING--------------------------------
+        $this->upload_to_s3($csvPathFullHistory, $csvFullHistory);
     }
 
     /**
@@ -458,6 +479,7 @@ class MetricsCounterFullHistory
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {   
         if (WP_ENV !== 'production') { return; };
+        
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
             'region' => 'us-east-1'
@@ -502,10 +524,17 @@ class MetricsCounterFullHistory
     {
         $upload_dir = wp_upload_dir();
 
-        $filename = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $filename = 'Non-federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $filenameFed = 'federal-agency-participation-full-by-' . $this->date_field . '.json';
+        $jsonFullHistory = 'agency-participation-full-by-' . $this->date_field . '.json';
 
         $jsonPath = $upload_dir['basedir'] . '/' . $filename;
+        $jsonPathFed = $upload_dir['basedir'] . '/' . $filenameFed;
+        $jsonPathFullHistory = $upload_dir['basedir'] . '/' . $jsonFullHistory;
+
         @chmod($jsonPath, 0666);
+        @chmod($jsonPathFed, 0666);
+
         if (file_exists($jsonPath) && !is_writable($jsonPath)) {
             die('could not write ' . $jsonPath);
         }
@@ -522,6 +551,23 @@ class MetricsCounterFullHistory
         }
 
         $this->upload_to_s3($jsonPath, $filename);
+
+        // Combine Fed and Nonfed json files to one file
+        $jsonFed = json_decode(file_get_contents($jsonPathFed), TRUE);
+        $jsonNonFed = json_decode(file_get_contents($jsonPath), TRUE);
+        $jsonAll = array_merge_recursive($jsonFed, $jsonNonFed);
+
+        $jsonAll['total'] = $jsonAll['total'][0] + $jsonAll['total'][1];
+        $jsonAll['updated_at'] = $jsonAll['updated_at'][1];
+        
+        foreach ($jsonAll['total_by_month'] as $month => $valuesArray) {
+            $jsonAll['total_by_month'][$month] = $valuesArray[0] + $valuesArray[1];
+        }
+
+        file_put_contents($jsonPathFullHistory, json_encode($jsonAll, JSON_PRETTY_PRINT));
+
+        // CHECK THIS
+        $this->upload_to_s3($jsonPathFullHistory, $jsonFullHistory);
     }
 
     /**

@@ -95,6 +95,11 @@ function get_ckan_metric_info_full_history()
     $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
     $MetricsCounterFullHistory->generate_reports();
 
+    require_once 'Classes/MetricsCounterFullHistoryNonFed.class.php';
+
+    $MetricsCounterFullHistoryNonFed = new MetricsCounterFullHistoryNonFed('metadata_created');
+    $MetricsCounterFullHistoryNonFed->generate_reports();
+
 //    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_modified');
 //    $MetricsCounterFullHistory->generate_reports();
 }
