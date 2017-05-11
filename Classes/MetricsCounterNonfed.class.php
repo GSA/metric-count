@@ -551,6 +551,8 @@ class MetricsCounterNonFed
             $this->update_post_meta($content_id, 'metric_sector', 'City Government');
         } elseif( $category == "Cooperative") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
+        } elseif( $category == "Cooperative ") {
+            $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
         } elseif( $category == "Commercial") {
             $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
         } elseif( $category == "County Government") {
@@ -679,6 +681,8 @@ class MetricsCounterNonFed
             $this->update_post_meta($content_id, 'metric_sector', 'City Government');
         } elseif( $category == "Cooperative") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
+        } elseif( $category == "Cooperative ") {
+            $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
         } elseif( $category == "Commercial") {
             $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
         } elseif( $category == "County Government") {
@@ -766,6 +770,8 @@ class MetricsCounterNonFed
             } elseif( $category == "Commercial") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
             } elseif( $category == "Cooperative") {
+                $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
+            } elseif( $category == "Cooperative ") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
             } elseif( $category == "County Government") {
                 $this->update_post_meta($content_id, 'metric_sector', 'County Government');
