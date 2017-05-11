@@ -87,10 +87,10 @@ function get_ckan_metric_info_full_history()
     ini_set('display_errors', '1');
     set_time_limit(60 * 30);  //  30 minutes
 
-    // require_once 'Classes/MetricsCounterFullHistory.class.php';
+    require_once 'Classes/MetricsCounterFullHistory.class.php';
 
-    // $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
-    // $MetricsCounterFullHistory->generate_reports();
+    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
+    $MetricsCounterFullHistory->generate_reports();
 
     require_once 'Classes/MetricsCounterFullHistoryNonFed.class.php';
 
