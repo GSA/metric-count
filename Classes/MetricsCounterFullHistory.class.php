@@ -69,7 +69,7 @@ class MetricsCounterFullHistory
             'total' => 0,
             'updated_at' => date(DATE_RFC2822),
             'total_by_month' => array(),
-            'organizations' => array()
+            'organizations' => array(),
         );
 
         $this->ckanApiUrl = get_option('ckan_access_pt');
@@ -163,7 +163,8 @@ class MetricsCounterFullHistory
              */
             $this->create_metric_content(
                 $RootOrganization->getTitle(),
-                $solr_query
+                $solr_query,
+                $RootOrganization->getIsCfo()
             );
         }
 
@@ -317,16 +318,25 @@ class MetricsCounterFullHistory
      */
     private function create_metric_content(
         $title,
-        $organizations
+        $organizations,
+        $cfo
     )
     {
+        if ($cfo == 'Y') {
+            $organization_type = 'Federal';
+        } else {
+            $organization_type = 'Federal-Other';
+        }
+
         $organization = array(
             'title' => $title,
+            'organization_type' => $organization_type,
             'total' => 0,
             'web_url' => '',
             'api_url' => '',
             'metrics' => array()
         );
+
 
         $now = date('M Y');
         $date = '';
@@ -420,6 +430,7 @@ class MetricsCounterFullHistory
 
         $header = array_merge(
             array('Agency'),
+            array('Organization Type'),
             array_keys($this->data_tree['total_by_month']),
             array('Total')
         );
@@ -430,6 +441,7 @@ class MetricsCounterFullHistory
                 continue;
             }
             $line = array($organization['title']);
+            $line[] = $organization['organization_type'];
             foreach ($organization['metrics'] as $month) {
                 $line[] = $month['count'];
             }

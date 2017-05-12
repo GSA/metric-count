@@ -144,9 +144,14 @@ class MetricsCounterFullHistoryNonFed
             /**
              * Collect statistics and create data for ROOT organization
              */
+            if( $OneOrganization['organization_type'] == "Cooperative ") {
+                $OneOrganization['organization_type'] = "Cooperative";
+            } 
+
             $this->create_metric_content(
                 $OneOrganization['title'],
-                $solr_query
+                $solr_query,
+                $OneOrganization['organization_type']
             );
         }
 
@@ -307,11 +312,13 @@ class MetricsCounterFullHistoryNonFed
      */
     private function create_metric_content(
         $title,
-        $organizations
+        $organizations,
+        $organization_type
     )
     {
         $organization = array(
             'title' => $title,
+            'organization_type' => $organization_type,
             'total' => 0,
             'web_url' => '',
             'api_url' => '',
@@ -417,6 +424,7 @@ class MetricsCounterFullHistoryNonFed
 
         $header = array_merge(
             array('Agency'),
+            array('Organization Type'),
             array_keys($this->data_tree['total_by_month']),
             array('Total')
         );
@@ -427,6 +435,7 @@ class MetricsCounterFullHistoryNonFed
                 continue;
             }
             $line = array($organization['title']);
+            $line[] = $organization['organization_type'];
             foreach ($organization['metrics'] as $month) {
                 $line[] = $month['count'];
             }
