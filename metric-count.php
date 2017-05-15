@@ -71,9 +71,12 @@ function get_ckan_metric_info()
     set_time_limit(60 * 30);  //  30 minutes
 
     require_once 'Classes/MetricsCounter.class.php';
+    require_once 'Classes/MetricsCounterNonfed.class.php';
 
     $MetricsCounter = new MetricsCounter();
+    $MetricsCounterNonFed = new MetricsCounterNonFed();
     $MetricsCounter->updateMetrics();
+    $MetricsCounterNonFed->updateMetrics();
 }
 
 /**
@@ -91,6 +94,11 @@ function get_ckan_metric_info_full_history()
 
     $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_created');
     $MetricsCounterFullHistory->generate_reports();
+
+    require_once 'Classes/MetricsCounterFullHistoryNonFed.class.php';
+
+    $MetricsCounterFullHistoryNonFed = new MetricsCounterFullHistoryNonFed('metadata_created');
+    $MetricsCounterFullHistoryNonFed->generate_reports();
 
 //    $MetricsCounterFullHistory = new MetricsCounterFullHistory('metadata_modified');
 //    $MetricsCounterFullHistory->generate_reports();
