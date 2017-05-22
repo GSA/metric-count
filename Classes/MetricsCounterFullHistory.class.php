@@ -334,7 +334,7 @@ class MetricsCounterFullHistory
         } else {
             $organization_type = 'Federal-Other';
         }
-
+        
         $organization = array(
             'title' => $title,
             'organization_type' => $organization_type,
