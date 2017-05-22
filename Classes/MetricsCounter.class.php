@@ -62,6 +62,7 @@ class MetricsCounter
     function __construct()
     {
         $this->idm_json_url = get_option('org_server');
+        // $this->idm_json_url = 'localhost:8000/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
         if (!$this->idm_json_url) {
             $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
         }
@@ -280,10 +281,10 @@ class MetricsCounter
      */
     private function ckan_metric_get_taxonomies()
     {
-        $response = $this->curl_get($this->idm_json_url);
+        // $response = $this->curl_get($this->idm_json_url);
+        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
-
         return $taxonomies;
     }
 
@@ -299,9 +300,7 @@ class MetricsCounter
         if ('http' != substr($url, 0, 4)) {
             $url = 'http:' . $url;
         }
-
 //        $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
-
         try {
             $result = $this->curl_make_request('GET', $url);
         } catch (Exception $ex) {
@@ -390,7 +389,7 @@ class MetricsCounter
 
 //        ignore 3rd level ones
             if ($taxonomy['unique id'] != $taxonomy['term']) {
-                continue;
+                // continue;
             }
 
 //        Make sure we got $return[$sector], ex. $return['Federal Organization']
@@ -406,7 +405,13 @@ class MetricsCounter
                 $RootAgency->setIsRoot(true);
             }
 
-            if (strlen($taxonomy['Sub Agency']) != 0) {
+//        This is for third level agency
+            if ($taxonomy['unique id'] != $taxonomy['term']) {
+                $Agency = new MetricsTaxonomy($taxonomy['term']);
+                $Agency->setTerm($taxonomy['unique id']);
+                $Agency->setIsCfo($taxonomy['is_cfo']);
+                $RootAgency->addChild($Agency);
+            } else if (strlen($taxonomy['Sub Agency']) != 0) {
 //        This is sub-agency
                 $Agency = new MetricsTaxonomy($taxonomy['Sub Agency']);
                 $Agency->setTerm($taxonomy['unique id']);
@@ -453,14 +458,13 @@ class MetricsCounter
         $export = 0
     )
     {
+
         if (strlen($ckan_id) != 0) {
             $url = $this->ckanApiUrl . "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset&rows=1&sort=metadata_modified+desc";
 
             $this->stats++;
-
             $response = $this->curl_get($url);
             $body = json_decode($response, true);
-
             $count = $body['result']['count'];
 
             if ($count) {

@@ -460,17 +460,18 @@ class MetricsCounterFullHistoryNonFed
             if(!is_array($files)) {
                 throw new Exception('`$files` must be an array');
             }
-
+            $notFirstFile = false;
             $wH = fopen($result, "w+");
 
             foreach($files as $file) {
                 $fh = fopen($file, "r");
+                if($notFirstFile) { fgets($fh); }
                 while(!feof($fh)) {
                     fwrite($wH, fgets($fh));
                 }
                 fclose($fh);
                 unset($fh);
-                fwrite($wH, "\n");
+                $notFirstFile = true;
             }
             fclose($wH);
             unset($wH);

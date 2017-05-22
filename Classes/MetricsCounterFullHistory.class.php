@@ -244,7 +244,8 @@ class MetricsCounterFullHistory
      */
     private function ckan_metric_get_taxonomies()
     {
-        $response = $this->curl->get($this->idm_json_url);
+        // $response = $this->curl->get($this->idm_json_url);
+        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
 
@@ -275,7 +276,7 @@ class MetricsCounterFullHistory
 
 //        ignore 3rd level ones
             if ($taxonomy['unique id'] != $taxonomy['term']) {
-                continue;
+                // continue;
             }
 
 //        Make sure we got $return[$sector], ex. $return['Federal Organization']
@@ -291,7 +292,13 @@ class MetricsCounterFullHistory
                 $RootAgency->setIsRoot(true);
             }
 
-            if (strlen($taxonomy['Sub Agency']) != 0) {
+//        This is for third level agency
+            if ($taxonomy['unique id'] != $taxonomy['term']) {
+                $Agency = new MetricsTaxonomy($taxonomy['term']);
+                $Agency->setTerm($taxonomy['unique id']);
+                $Agency->setIsCfo($taxonomy['is_cfo']);
+                $RootAgency->addChild($Agency);
+            } else if (strlen($taxonomy['Sub Agency']) != 0) {
 //        This is sub-agency
                 $Agency = new MetricsTaxonomy($taxonomy['Sub Agency']);
                 $Agency->setTerm($taxonomy['unique id']);
