@@ -63,6 +63,7 @@ class MetricsCounter
     {
         $this->idm_json_url = get_option('org_server');
         // $this->idm_json_url = 'localhost:8000/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
+
         if (!$this->idm_json_url) {
             $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
         }
@@ -281,8 +282,14 @@ class MetricsCounter
      */
     private function ckan_metric_get_taxonomies()
     {
+
         // $response = $this->curl_get($this->idm_json_url);
-        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
+        $response = $this->curl_get(get_home_url() . '/app/themes/roots-nextdatagov/assets/json/fed_agency.json');
+
+        // $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
+        // error_log("get home url");
+        // error_log(get_home_url() . '/app/themes/roots-nextdatagov/assets/json/fed_agency.json');
+
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
         return $taxonomies;
@@ -348,6 +355,7 @@ class MetricsCounter
         // Execute request and get response headers.
         $response = curl_exec($this->ch);
         $info = curl_getinfo($this->ch);
+
         // Check HTTP response code
         if ($info['http_code'] !== 200) {
             switch ($info['http_code']) {
