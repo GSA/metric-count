@@ -284,12 +284,7 @@ class MetricsCounter
     {
 
         // $response = $this->curl_get($this->idm_json_url);
-        $response = $this->curl_get(get_home_url() . '/app/themes/roots-nextdatagov/assets/json/fed_agency.json');
-
-        // $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
-        // error_log("get home url");
-        // error_log(get_home_url() . '/app/themes/roots-nextdatagov/assets/json/fed_agency.json');
-
+        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/Json/fed_agency.json');
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
         return $taxonomies;
