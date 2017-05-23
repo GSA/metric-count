@@ -245,7 +245,7 @@ class MetricsCounterFullHistory
     private function ckan_metric_get_taxonomies()
     {
         // $response = $this->curl->get($this->idm_json_url);
-        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/json/fed_agency.json');
+        $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/Json/fed_agency.json');
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
 
