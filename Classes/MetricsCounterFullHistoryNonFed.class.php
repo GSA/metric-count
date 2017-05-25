@@ -472,7 +472,6 @@ class MetricsCounterFullHistoryNonFed
                 fclose($fh);
                 unset($fh);
                 $notFirstFile = true;
-                fwrite($wH, "\n");
             }
             fclose($wH);
             unset($wH);
