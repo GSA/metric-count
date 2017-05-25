@@ -873,10 +873,15 @@ class MetricsCounterNonFed
             $notFirstFile = false;
             $wH = fopen($result, "w+");
             foreach($files as $file) {
+                $firstLine = true;
                 $fh = fopen($file, "r");
-                if($notFirstFile) { fgets($fh); }
                 while(!feof($fh)) {
-                    fwrite($wH, fgets($fh));
+                    if($notFirstFile == true && $firstLine == true) {
+                        $firstLine = false;
+                        fgets($fh);
+                    } else {
+                        fwrite($wH, fgets($fh));
+                    }
                 }
                 fclose($fh);
                 unset($fh);
