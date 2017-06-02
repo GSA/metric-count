@@ -4,6 +4,7 @@ require_once __DIR__ . '/MetricsTaxonomy.class.php';
 require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 
 use \Aws\Common\Aws;
+
 /**
  * Class MetricsCounter
  */
@@ -24,13 +25,9 @@ class MetricsCounter
      */
     private $ch_headers;
     /**
-     * @var string
+     * @var mixed|string
      */
-//    private $ckan_no_cache_ip = '';
-    /**
-     * @var string
-     */
-    private $idm_json_url = '';
+    private $ckanUrl = '';
     /**
      * @var mixed|string
      */
@@ -61,23 +58,13 @@ class MetricsCounter
      */
     function __construct()
     {
-        $this->idm_json_url = get_option('org_server');
-        // $this->idm_json_url = 'localhost:8000/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
+        $this->ckanUrl = get_option('ckan_access_pt')?:'//catalog.data.gov/';
+        $this->ckanUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanUrl);
 
-        if (!$this->idm_json_url) {
-            $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
-        }
-
-        $this->ckanApiUrl = get_option('ckan_access_pt');
-        if (!$this->ckanApiUrl) {
-            $this->ckanApiUrl = '//catalog.data.gov/';
-        }
+        $this->ckanApiUrl = get_option('ckan_api_endpoint') ?: '//catalog.data.gov/';
         $this->ckanApiUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanApiUrl);
 
-//        $this->ckan_no_cache_ip = get_option('ckan_no_cache_ip') ? get_option('ckan_no_cache_ip') : '216.128.241.210';
-
         global $wpdb;
-//        hate this sh*t
         $this->wpdb = $wpdb;
 
         // Create cURL object.
@@ -137,14 +124,13 @@ class MetricsCounter
 //        If previous cron script failed, we need to remove trash
         $this->cleaner();
 
-//    Get latest taxonomies from http://idm.data.gov/fed_agency.json
         $taxonomies = $this->ckan_metric_get_taxonomies();
 
 //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
         $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
         $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
-        
+
         /** @var MetricsTaxonomy $RootOrganization */
         foreach ($FederalOrganizationTree as $RootOrganization) {
 //        skip broken structures
@@ -232,9 +218,9 @@ class MetricsCounter
         echo 'get count by month: ' . $this->statsByMonth . ' times<br />';
 
 //        Publish new metrics
-        $this->publishNewMetrics();
+//        $this->publishNewMetrics();
 
-        $this->unlock();
+//        $this->unlock();
     }
 
     /**
@@ -274,7 +260,7 @@ class MetricsCounter
     private function cleaner()
     {
         $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_new'");
-        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
+        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID FROM wp_posts)");
     }
 
     /**
@@ -283,89 +269,10 @@ class MetricsCounter
     private function ckan_metric_get_taxonomies()
     {
 
-        // $response = $this->curl_get($this->idm_json_url);
         $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/Json/fed_agency.json');
         $body = json_decode($response, true);
         $taxonomies = $body['taxonomies'];
         return $taxonomies;
-    }
-
-    /**
-     * @param $url
-     *
-     * @return mixed
-     */
-    private function curl_get(
-        $url
-    )
-    {
-        if ('http' != substr($url, 0, 4)) {
-            $url = 'http:' . $url;
-        }
-//        $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
-        try {
-            $result = $this->curl_make_request('GET', $url);
-        } catch (Exception $ex) {
-            echo '<hr />' . $url . '<br />';
-            echo $ex->getMessage() . '<hr />';
-            $result = false;
-        }
-
-        return $result;
-    }
-
-    /**
-     * @param string $method // HTTP method (GET, POST)
-     * @param string $uri // URI fragment to CKAN resource
-     * @param string $data // Optional. String in JSON-format that will be in request body
-     *
-     * @return mixed    // If success, either an array or object. Otherwise FALSE.
-     * @throws Exception
-     */
-    private function curl_make_request(
-        $method,
-        $uri,
-        $data = null
-    )
-    {
-        $method = strtoupper($method);
-        if (!in_array($method, array('GET', 'POST'))) {
-            throw new Exception('Method ' . $method . ' is not supported');
-        }
-        // Set cURL URI.
-        curl_setopt($this->ch, CURLOPT_URL, $uri);
-        if ($method === 'POST') {
-            if ($data) {
-                curl_setopt($this->ch, CURLOPT_POSTFIELDS, urlencode($data));
-            } else {
-                $method = 'GET';
-            }
-        }
-
-        // Set cURL method.
-        curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, $method);
-
-        // Set headers.
-        curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->ch_headers);
-        // Execute request and get response headers.
-        $response = curl_exec($this->ch);
-        $info = curl_getinfo($this->ch);
-
-        // Check HTTP response code
-        if ($info['http_code'] !== 200) {
-            switch ($info['http_code']) {
-                case 404:
-                    throw new Exception($data);
-                    break;
-                default:
-                    throw new Exception(
-                        $info['http_code'] . ': ' .
-                        $this->http_status_codes[$info['http_code']] . PHP_EOL . $data . PHP_EOL
-                    );
-            }
-        }
-
-        return $response;
     }
 
     /**
@@ -430,8 +337,6 @@ class MetricsCounter
             $Taxonomies->updateRootAgency($RootAgency, $taxonomy['vocabulary']);
         }
 
-//    $return = $Taxonomies->toArray();
-//    return $return;
 
         return $Taxonomies;
     }
@@ -575,14 +480,14 @@ class MetricsCounter
                 $this->update_post_meta(
                     $content_id,
                     'month_' . $i . '_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $dataset_range[$i]
+                    $this->ckanUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $dataset_range[$i]
                 );
             }
 
             $this->update_post_meta(
                 $content_id,
                 'last_year_dataset_url',
-                $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $lastYearRange
+                $this->ckanUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $lastYearRange
             );
 
         }
@@ -602,7 +507,7 @@ class MetricsCounter
         $this->update_post_meta(
             $content_id,
             'metric_url',
-            $this->ckanApiUrl . 'dataset?q=' . $organizations
+            $this->ckanUrl . 'dataset?q=' . $organizations
         );
 
         if (!$sub_agency) {
@@ -635,6 +540,83 @@ class MetricsCounter
         }
 
         return $content_id;
+    }
+
+    /**
+     * @param $url
+     *
+     * @return mixed
+     */
+    private function curl_get(
+        $url
+    )
+    {
+        if ('http' != substr($url, 0, 4)) {
+            $url = 'http:' . $url;
+        }
+        try {
+            $result = $this->curl_make_request('GET', $url);
+        } catch (Exception $ex) {
+            echo '<hr />' . $url . '<br />';
+            echo $ex->getMessage() . '<hr />';
+            $result = false;
+        }
+
+        return $result;
+    }
+
+    /**
+     * @param string $method // HTTP method (GET, POST)
+     * @param string $uri // URI fragment to CKAN resource
+     * @param string $data // Optional. String in JSON-format that will be in request body
+     *
+     * @return mixed    // If success, either an array or object. Otherwise FALSE.
+     * @throws Exception
+     */
+    private function curl_make_request(
+        $method,
+        $uri,
+        $data = null
+    )
+    {
+        $method = strtoupper($method);
+        if (!in_array($method, array('GET', 'POST'))) {
+            throw new Exception('Method ' . $method . ' is not supported');
+        }
+        // Set cURL URI.
+        curl_setopt($this->ch, CURLOPT_URL, $uri);
+        if ($method === 'POST') {
+            if ($data) {
+                curl_setopt($this->ch, CURLOPT_POSTFIELDS, urlencode($data));
+            } else {
+                $method = 'GET';
+            }
+        }
+
+        // Set cURL method.
+        curl_setopt($this->ch, CURLOPT_CUSTOMREQUEST, $method);
+
+        // Set headers.
+        curl_setopt($this->ch, CURLOPT_HTTPHEADER, $this->ch_headers);
+        // Execute request and get response headers.
+        $response = curl_exec($this->ch);
+        $info = curl_getinfo($this->ch);
+
+        // Check HTTP response code
+        if ($info['http_code'] !== 200) {
+            switch ($info['http_code']) {
+                case 404:
+                    throw new Exception($data);
+                    break;
+                default:
+                    throw new Exception(
+                        $info['http_code'] . ': ' .
+                        $this->http_status_codes[$info['http_code']] . PHP_EOL . $data . PHP_EOL
+                    );
+            }
+        }
+
+        return $response;
     }
 
     /**
@@ -697,7 +679,7 @@ class MetricsCounter
         $this->update_post_meta(
             $content_id,
             'metric_url',
-            $this->ckanApiUrl . "dataset?q={$ckan_organization}"
+            $this->ckanUrl . "dataset?q={$ckan_organization}"
         );
 
         if ('Y' == $RootOrganization->getIsCfo()) {
@@ -769,7 +751,7 @@ class MetricsCounter
             $this->update_post_meta(
                 $content_id,
                 'metric_url',
-                $this->ckanApiUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
+                $this->ckanUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
             );
 
             if ('Y' == $RootOrganization->getIsCfo()) {
@@ -783,10 +765,8 @@ class MetricsCounter
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
 //                http://catalog.data.gov/api/action/package_search?q=type:dataset+AND+extras_publisher:United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department&sort=metadata_modified+desc&rows=1
-
             $apiPublisherTitle = str_replace(array('/', '%2F'), array('\/', '%5C%2F'), urlencode($publisherTitle));
             $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . $apiPublisherTitle . "&sort=metadata_modified+desc&rows=1";
-//            echo $url."<br /><hr />";
 
             $this->stats++;
 
@@ -816,7 +796,6 @@ class MetricsCounter
     private function write_metrics_csv_and_xls()
     {
         asort($this->results);
-//    chdir(ABSPATH.'media/');
 
         $upload_dir = wp_upload_dir();
 
@@ -901,10 +880,12 @@ class MetricsCounter
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {
-        if (WP_ENV !== 'production') { return;} 
+        if (WP_ENV !== 'production') {
+            return;
+        }
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
-            'region'  => 'us-east-1'
+            'region' => 'us-east-1'
         ));
 
         // Get client instances from the service locator by name
@@ -939,25 +920,25 @@ class MetricsCounter
         }
     }
 
-    /**
-     *  Replace previous data with latest metrics
-     */
-    private function publishNewMetrics()
-    {
-        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
-        $this->wpdb->query(
-            "UPDATE wp_posts SET post_type='metric_organization' WHERE post_type='metric_new'"
-        );
-        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
-
-        update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()) . ' GMT');
-    }
-
-    /**
-     *  Unlock the system for next cron run
-     */
-    private function unlock()
-    {
-        delete_option(self::LOCK_TITLE);
-    }
+//    /**
+//     *  Replace previous data with latest metrics
+//     */
+//    private function publishNewMetrics()
+//    {
+//        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
+//        $this->wpdb->query(
+//            "UPDATE wp_posts SET post_type='metric_organization' WHERE post_type='metric_new'"
+//        );
+//        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
+//
+//        update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()) . ' GMT');
+//    }
+//
+//    /**
+//     *  Unlock the system for next cron run
+//     */
+//    private function unlock()
+//    {
+//        delete_option(self::LOCK_TITLE);
+//    }
 }

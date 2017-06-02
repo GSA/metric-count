@@ -26,10 +26,8 @@ function metric_configuration()
 function metric_count_settings()
 {
 
-    $ckan_access_pt = (get_option('ckan_access_pt')) ? get_option('ckan_access_pt') : '//catalog.data.gov/';
-    $org_server = (get_option('org_server')) ? get_option(
-        'org_server'
-    ) : 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
+    $ckan_access_pt = (get_option('ckan_access_pt')) ?: '//catalog.data.gov/';
+    $ckan_api_endpoint = (get_option('ckan_api_endpoint')) ?: 'https://catalog.data.gov/';
 
     $html = '<form action="options.php" method="post" name="options">
 			<h2>Metric Count Settings</h2>' . wp_nonce_field('update-options');
@@ -44,15 +42,15 @@ function metric_count_settings()
 					</tr>
 					<tr>
 						<td scope="row" aligni="left">
-						   <label>Organization Server Address</label>
-						   <input type="text" name="org_server" size="60" value="' . $org_server . '">
+						   <label>CKAN API Endpoint (could be local)</label>
+						   <input type="text" name="ckan_api_endpoint" size="60" value="' . $ckan_api_endpoint . '">
 						</td>
 					</tr>
 				</tbody>
  			</table>';
 
     $html .= '<input type="hidden" name="action" value="update" />
-			<input type="hidden" name="page_options" value="ckan_access_pt,org_server" />
+			<input type="hidden" name="page_options" value="ckan_access_pt,ckan_api_endpoint" />
 			<input type="submit" name="Submit" value="Update" />
 			</form>';
 

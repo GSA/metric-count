@@ -4,6 +4,7 @@ require_once __DIR__ . '/MetricsTaxonomy.class.php';
 require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 
 use \Aws\Common\Aws;
+
 /**
  * Class MetricsCounter
  */
@@ -26,11 +27,11 @@ class MetricsCounterNonFed
     /**
      * @var string
      */
-//    private $ckan_no_cache_ip = '';
-    /**
-     * @var string
-     */
     private $idm_json_url = '';
+    /**
+     * @var mixed|string
+     */
+    private $ckanUrl = '';
     /**
      * @var mixed|string
      */
@@ -61,22 +62,16 @@ class MetricsCounterNonFed
      */
     function __construct()
     {
-        // $this->idm_json_url = get_option('org_server');
         $this->idm_json_url = 'http://catalog.data.gov/api/3/action/organization_list?all_fields=true';
-        // if (!$this->idm_json_url) {
-        //     $this->idm_json_url = 'http://data.gov/app/themes/roots-nextdatagov/assets/Json/fed_agency.json';
-        // }
 
-        $this->ckanApiUrl = get_option('ckan_access_pt');
-        if (!$this->ckanApiUrl) {
-            $this->ckanApiUrl = '//catalog.data.gov/';
-        }
+        $this->ckanUrl = get_option('ckan_access_pt')?:'//catalog.data.gov/';
+        $this->ckanUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanUrl);
+
+        $this->ckanApiUrl = get_option('ckan_api_endpoint') ?: '//catalog.data.gov/';
         $this->ckanApiUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanApiUrl);
 
-//        $this->ckan_no_cache_ip = get_option('ckan_no_cache_ip') ? get_option('ckan_no_cache_ip') : '216.128.241.210';
 
         global $wpdb;
-//        hate this sh*t
         $this->wpdb = $wpdb;
 
         // Create cURL object.
@@ -124,12 +119,12 @@ class MetricsCounterNonFed
      */
     public function updateMetrics()
     {
-        echo PHP_EOL . date("(Y-m-d H:i:s)") . '(metrics-cron) Started' . PHP_EOL;
-        if (!$this->checkLock()) {
-            echo "Locked: another instance of metrics script is already running. Please try again later";
-
-            return;
-        }
+        echo PHP_EOL . date("(Y-m-d H:i:s)") . '(metrics-cron) Started for non-federal' . PHP_EOL;
+//        if (!$this->checkLock()) {
+//            echo "Locked: another instance of metrics script is already running. Please try again later";
+//
+//            return;
+//        }
 
         set_time_limit(60 * 60 * 5);  //  5 hours
 
@@ -138,9 +133,6 @@ class MetricsCounterNonFed
 
 //    Get latest taxonomies from http://idm.data.gov/fed_agency.json
         $AllCategories = $this->ckan_metric_get_organizations();
-
-//    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
-        // $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
 
         /** @var MetricsTaxonomy $RootOrganization */
         foreach ($AllCategories as $OneOrganization) {
@@ -195,46 +187,6 @@ class MetricsCounterNonFed
     }
 
     /**
-     * @return bool
-     * unlocked automatically after 30 minutes, if script died
-     */
-    private function checkLock()
-    {
-        $lock = get_option(self::LOCK_TITLE);
-
-        if ($lock) {
-            $now = time();
-            $diff = $now - $lock;
-
-//            30 minutes lock
-            if ($diff < (30 * 60)) {
-                return false;
-            }
-        }
-
-        $this->lock();
-
-        return true;
-    }
-
-    /**
-     *  Lock the system to avoid simultaneous cron runs
-     */
-    private function lock()
-    {
-        update_option(self::LOCK_TITLE, time());
-    }
-
-    /**
-     *  Clean trash records, if previous cron script failed
-     */
-    private function cleaner()
-    {
-        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_new'");
-        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
-    }
-
-    /**
      * @return mixed
      */
     private function ckan_metric_get_organizations()
@@ -244,7 +196,7 @@ class MetricsCounterNonFed
         $body = json_decode($response, true);
         $organizations = $body['result'];
         foreach ($organizations as $organization) {
-            if($organization['organization_type'] != "Federal Government") {
+            if ($organization['organization_type'] != "Federal Government") {
                 array_push($AllCategories, $organization);
             }
         }
@@ -265,8 +217,6 @@ class MetricsCounterNonFed
             $url = 'http:' . $url;
         }
 
-//        $url = str_replace('catalog.data.gov', $this->ckan_no_cache_ip, $url);
-
         try {
             $result = $this->curl_make_request('GET', $url);
         } catch (Exception $ex) {
@@ -277,6 +227,15 @@ class MetricsCounterNonFed
 
         return $result;
     }
+
+//    /**
+//     *  Clean trash records, if previous cron script failed
+//     */
+//    private function cleaner()
+//    {
+//        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_new'");
+//        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
+//    }
 
     /**
      * @param string $method // HTTP method (GET, POST)
@@ -332,69 +291,7 @@ class MetricsCounterNonFed
     }
 
     /**
-     * @param $taxonomies
-     *
-     * @return MetricsTaxonomiesTree
-     */
-    private function ckan_metric_convert_structure($taxonomies)
-    {
-        $Taxonomies = new MetricsTaxonomiesTree();
-
-        foreach ($taxonomies as $taxonomy) {
-            $taxonomy = $taxonomy['taxonomy'];
-
-//        ignore bad ones
-            if (strlen($taxonomy['unique id']) == 0) {
-                continue;
-            }
-
-//        Empty Federal Agency = illegal
-            if (!$taxonomy['Federal Agency']) {
-                continue;
-            }
-
-//        ignore 3rd level ones
-            if ($taxonomy['unique id'] != $taxonomy['term']) {
-                continue;
-            }
-
-//        Make sure we got $return[$sector], ex. $return['Federal Organization']
-            if (!isset($return[$taxonomy['vocabulary']])) {
-                $return[$taxonomy['vocabulary']] = array();
-            }
-
-            $RootAgency = $Taxonomies->getRootAgency($taxonomy['Federal Agency'], $taxonomy['vocabulary']);
-
-            if (!($RootAgency)) {
-//            create root agency if doesn't exist yet
-                $RootAgency = new MetricsTaxonomy($taxonomy['Federal Agency']);
-                $RootAgency->setIsRoot(true);
-            }
-
-            if (strlen($taxonomy['Sub Agency']) != 0) {
-//        This is sub-agency
-                $Agency = new MetricsTaxonomy($taxonomy['Sub Agency']);
-                $Agency->setTerm($taxonomy['unique id']);
-                $Agency->setIsCfo($taxonomy['is_cfo']);
-                $RootAgency->addChild($Agency);
-            } else {
-//        ELSE this is ROOT agency
-                $RootAgency->setTerm($taxonomy['unique id']);
-                $RootAgency->setIsCfo($taxonomy['is_cfo']);
-            }
-
-//        updating the tree
-            $Taxonomies->updateRootAgency($RootAgency, $taxonomy['vocabulary']);
-        }
-
-//    $return = $Taxonomies->toArray();
-//    return $return;
-
-        return $Taxonomies;
-    }
-
-    /**
-     * @param        $cfo
+     * @param        $category
      * @param        $title
      * @param        $ckan_id
      * @param        $organizations
@@ -535,39 +432,39 @@ class MetricsCounterNonFed
                 $this->update_post_meta(
                     $content_id,
                     'month_' . $i . '_dataset_url',
-                    $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $dataset_range[$i]
+                    $this->ckanUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $dataset_range[$i]
                 );
             }
 
             $this->update_post_meta(
                 $content_id,
                 'last_year_dataset_url',
-                $this->ckanApiUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $lastYearRange
+                $this->ckanUrl . 'dataset?q=(' . $organizations . ')+AND+dataset_type:dataset+AND+metadata_modified:' . $lastYearRange
             );
 
         }
 
-        if($category == "City Government"){
+        if ($category == "City Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-        } elseif( $category == "Cooperative") {
+        } elseif ($category == "Cooperative") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif( $category == "Cooperative ") {
+        } elseif ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif( $category == "Commercial") {
+        } elseif ($category == "Commercial") {
             $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-        } elseif( $category == "County Government") {
+        } elseif ($category == "County Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-        } elseif( $category == "Non-Profit") {
+        } elseif ($category == "Non-Profit") {
             $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
-        } elseif( $category == "Other") {
+        } elseif ($category == "Other") {
             $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif( $category == "State") {
+        } elseif ($category == "State") {
             $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif( $category == "State Government") {
+        } elseif ($category == "State Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-        } elseif( $category == "Tribal") {
+        } elseif ($category == "Tribal") {
             $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-        } elseif( $category == "University") {
+        } elseif ($category == "University") {
             $this->update_post_meta($content_id, 'metric_sector', 'University');
         }
 
@@ -578,7 +475,7 @@ class MetricsCounterNonFed
         $this->update_post_meta(
             $content_id,
             'metric_url',
-            $this->ckanApiUrl . 'dataset?q=' . $organizations
+            $this->ckanUrl . 'dataset?q=' . $organizations
         );
 
         if (!$sub_agency) {
@@ -637,7 +534,7 @@ class MetricsCounterNonFed
     {
         $publisherTitle = '    Department/Agency level/No publisher';
 
-       // https://catalog.data.gov/api/3/action/package_search?q=organization:(gsa-gov)+AND+type:dataset+AND+-extras_publisher:*&sort=metadata_modified+desc&rows=1
+        // https://catalog.data.gov/api/3/action/package_search?q=organization:(gsa-gov)+AND+type:dataset+AND+-extras_publisher:*&sort=metadata_modified+desc&rows=1
         $ckan_organization = 'organization:' . urlencode(
                 $RootOrganization['name']
             ) . '+AND+type:dataset+AND+-extras_publisher:*';
@@ -673,31 +570,31 @@ class MetricsCounterNonFed
         $this->update_post_meta(
             $content_id,
             'metric_url',
-            $this->ckanApiUrl . "dataset?q={$ckan_organization}"
+            $this->ckanUrl . "dataset?q={$ckan_organization}"
         );
 
         $category = $RootOrganization['organization_type'];
-        if($category == "City Government"){
+        if ($category == "City Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-        } elseif( $category == "Cooperative") {
+        } elseif ($category == "Cooperative") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif( $category == "Cooperative ") {
+        } elseif ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif( $category == "Commercial") {
+        } elseif ($category == "Commercial") {
             $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-        } elseif( $category == "County Government") {
+        } elseif ($category == "County Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-        } elseif( $category == "Non-Profit") {
+        } elseif ($category == "Non-Profit") {
             $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
-        } elseif( $category == "Other") {
+        } elseif ($category == "Other") {
             $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif( $category == "State") {
+        } elseif ($category == "State") {
             $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif( $category == "State Government") {
+        } elseif ($category == "State Government") {
             $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-        }  elseif( $category == "Tribal") {
+        } elseif ($category == "Tribal") {
             $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-        } elseif( $category == "University") {
+        } elseif ($category == "University") {
             $this->update_post_meta($content_id, 'metric_sector', 'University');
         }
 
@@ -761,31 +658,31 @@ class MetricsCounterNonFed
             $this->update_post_meta(
                 $content_id,
                 'metric_url',
-                $this->ckanApiUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
+                $this->ckanUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
             );
 
             $category = $RootOrganization['organization_type'];
-            if($category == "City Government"){
+            if ($category == "City Government") {
                 $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-            } elseif( $category == "Commercial") {
+            } elseif ($category == "Commercial") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-            } elseif( $category == "Cooperative") {
+            } elseif ($category == "Cooperative") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-            } elseif( $category == "Cooperative ") {
+            } elseif ($category == "Cooperative ") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-            } elseif( $category == "County Government") {
+            } elseif ($category == "County Government") {
                 $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-            } elseif( $category == "Non-Profit") {
+            } elseif ($category == "Non-Profit") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
-            } elseif( $category == "Other") {
+            } elseif ($category == "Other") {
                 $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-            } elseif( $category == "State") {
+            } elseif ($category == "State") {
                 $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-            } elseif( $category == "State Government") {
+            } elseif ($category == "State Government") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-            } elseif( $category == "Tribal") {
+            } elseif ($category == "Tribal") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-            } elseif( $category == "University") {
+            } elseif ($category == "University") {
                 $this->update_post_meta($content_id, 'metric_sector', 'University');
             }
 
@@ -795,7 +692,6 @@ class MetricsCounterNonFed
 
             $apiPublisherTitle = str_replace(array('/', '%2F'), array('\/', '%5C%2F'), urlencode($publisherTitle));
             $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . $apiPublisherTitle . "&sort=metadata_modified+desc&rows=1";
-//            echo $url."<br /><hr />";
 
             $this->stats++;
 
@@ -813,21 +709,16 @@ class MetricsCounterNonFed
                 $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
             }
 
-            $this->results[] = array($RootOrganization['title'], trim($publisherTitle),$category, $count, $last_entry);
+            $this->results[] = array($RootOrganization['title'], trim($publisherTitle), $category, $count, $last_entry);
         }
 
         return;
     }
 
-    /**
-     *
-     */
 
-    //This function has been modified to create nonfed csv and xls and also a combined fed-nonfed csv and xls files.
     private function write_metrics_csv_and_xls()
     {
         asort($this->results);
-//    chdir(ABSPATH.'media/');
 
         $upload_dir = wp_upload_dir();
 
@@ -866,17 +757,18 @@ class MetricsCounterNonFed
 
         $this->upload_to_s3($csvPath, $csvFilenameNonFed);
         // This function combines two csv files. Fed and Nonfed Agency Participation csv
-        function joinFiles(array $files, $result) {
-            if(!is_array($files)) {
+        function joinFiles(array $files, $result)
+        {
+            if (!is_array($files)) {
                 throw new Exception('`$files` must be an array');
             }
             $notFirstFile = false;
             $wH = fopen($result, "w+");
-            foreach($files as $file) {
+            foreach ($files as $file) {
                 $firstLine = true;
                 $fh = fopen($file, "r");
-                while(!feof($fh)) {
-                    if($notFirstFile == true && $firstLine == true) {
+                while (!feof($fh)) {
+                    if ($notFirstFile == true && $firstLine == true) {
                         $firstLine = false;
                         fgets($fh);
                     } else {
@@ -890,6 +782,7 @@ class MetricsCounterNonFed
             fclose($wH);
             unset($wH);
         }
+
         joinFiles(array($csvPathFed, $csvPath), $csvPathAgencyParticipation);
 
         $this->upload_to_s3($csvPathAgencyParticipation, $csvAgencyParticipation);
@@ -936,7 +829,7 @@ class MetricsCounterNonFed
         }
 
         $this->upload_to_s3($xlsPath, $xlsFilename);
-        
+
         // This here combines the Fed/NonFed xls into one file
         $xlsFed = 'federal-agency-participation.xlsx';
         $xlsFedPath = $upload_dir['basedir'] . '/' . $xlsFed;
@@ -972,10 +865,12 @@ class MetricsCounterNonFed
      */
     private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
     {
-        if (WP_ENV !== 'production') { return;} 
+        if (WP_ENV !== 'production') {
+            return;
+        }
         // Create a service locator using a configuration file
         $aws = Aws::factory(array(
-            'region'  => 'us-east-1'
+            'region' => 'us-east-1'
         ));
 
         // Get client instances from the service locator by name
@@ -1015,11 +910,11 @@ class MetricsCounterNonFed
      */
     private function publishNewMetrics()
     {
-        // $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
+        $this->wpdb->query("DELETE FROM wp_posts WHERE post_type='metric_organization'");
         $this->wpdb->query(
             "UPDATE wp_posts SET post_type='metric_organization' WHERE post_type='metric_new'"
         );
-        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID from wp_posts)");
+        $this->wpdb->query("DELETE FROM wp_postmeta WHERE post_id NOT IN (SELECT ID FROM wp_posts)");
 
         update_option('metrics_updated_gmt', gmdate("m/d/Y h:i A", time()) . ' GMT');
     }
@@ -1030,5 +925,36 @@ class MetricsCounterNonFed
     private function unlock()
     {
         delete_option(self::LOCK_TITLE);
+    }
+
+    /**
+     * @return bool
+     * unlocked automatically after 30 minutes, if script died
+     */
+    private function checkLock()
+    {
+        $lock = get_option(self::LOCK_TITLE);
+
+        if ($lock) {
+            $now = time();
+            $diff = $now - $lock;
+
+//            30 minutes lock
+            if ($diff < (30 * 60)) {
+                return false;
+            }
+        }
+
+        $this->lock();
+
+        return true;
+    }
+
+    /**
+     *  Lock the system to avoid simultaneous cron runs
+     */
+    private function lock()
+    {
+        update_option(self::LOCK_TITLE, time());
     }
 }
