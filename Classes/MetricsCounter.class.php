@@ -690,6 +690,7 @@ class MetricsCounter
             $organization_type = 'Other Federal';
         }
 
+
         $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
         $last_entry = '-';
