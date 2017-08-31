@@ -447,11 +447,7 @@ class MetricsCounterNonFed
         if ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
         } elseif ($category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif ($category == "State") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif ($category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
         } else {
             $this->update_post_meta($content_id, 'metric_sector', $category);
         }
@@ -565,11 +561,7 @@ class MetricsCounterNonFed
         if ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
         } elseif ($category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif ($category == "State") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif ($category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
         } else {
             $this->update_post_meta($content_id, 'metric_sector', $category);
         }
@@ -642,11 +634,7 @@ class MetricsCounterNonFed
             if ($category == "Cooperative ") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
             } elseif ($category == "Other") {
-                $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-            } elseif ($category == "State") {
-                $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-            } elseif ($category == "State Government") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
+                $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
             } else {
                 $this->update_post_meta($content_id, 'metric_sector', $category);
             }
