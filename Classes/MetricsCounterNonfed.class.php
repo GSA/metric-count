@@ -444,28 +444,12 @@ class MetricsCounterNonFed
 
         }
 
-        if ($category == "City Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-        } elseif ($category == "Cooperative") {
+        if ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif ($category == "Cooperative ") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif ($category == "Commercial") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-        } elseif ($category == "County Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-        } elseif ($category == "Non-Profit") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
         } elseif ($category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif ($category == "State") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif ($category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-        } elseif ($category == "Tribal") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-        } elseif ($category == "University") {
-            $this->update_post_meta($content_id, 'metric_sector', 'University');
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
+        } else {
+            $this->update_post_meta($content_id, 'metric_sector', $category);
         }
 
         $this->update_post_meta($content_id, 'ckan_unique_id', $ckan_id);
@@ -574,28 +558,12 @@ class MetricsCounterNonFed
         );
 
         $category = $RootOrganization['organization_type'];
-        if ($category == "City Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-        } elseif ($category == "Cooperative") {
+        if ($category == "Cooperative ") {
             $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif ($category == "Cooperative ") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-        } elseif ($category == "Commercial") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-        } elseif ($category == "County Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-        } elseif ($category == "Non-Profit") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
         } elseif ($category == "Other") {
-            $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-        } elseif ($category == "State") {
-            $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-        } elseif ($category == "State Government") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-        } elseif ($category == "Tribal") {
-            $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-        } elseif ($category == "University") {
-            $this->update_post_meta($content_id, 'metric_sector', 'University');
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
+        } else {
+            $this->update_post_meta($content_id, 'metric_sector', $category);
         }
 
         $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
@@ -662,28 +630,13 @@ class MetricsCounterNonFed
             );
 
             $category = $RootOrganization['organization_type'];
-            if ($category == "City Government") {
-                $this->update_post_meta($content_id, 'metric_sector', 'City Government');
-            } elseif ($category == "Commercial") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Commercial');
-            } elseif ($category == "Cooperative") {
+
+            if ($category == "Cooperative ") {
                 $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-            } elseif ($category == "Cooperative ") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-            } elseif ($category == "County Government") {
-                $this->update_post_meta($content_id, 'metric_sector', 'County Government');
-            } elseif ($category == "Non-Profit") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Non-Profit');
             } elseif ($category == "Other") {
-                $this->update_post_meta($content_id, 'metric_sector', 'NonFed-O');
-            } elseif ($category == "State") {
-                $this->update_post_meta($content_id, 'metric_sector', 'State Agency');
-            } elseif ($category == "State Government") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Government-State');
-            } elseif ($category == "Tribal") {
-                $this->update_post_meta($content_id, 'metric_sector', 'Tribal');
-            } elseif ($category == "University") {
-                $this->update_post_meta($content_id, 'metric_sector', 'University');
+                $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
+            } else {
+                $this->update_post_meta($content_id, 'metric_sector', $category);
             }
 
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);

@@ -493,11 +493,11 @@ class MetricsCounter
         }
 
         if ($cfo == 'Y') {
-            $this->update_post_meta($content_id, 'metric_sector', 'Federal');
-            $organization_type = 'Federal';
+            $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+            $organization_type = 'Federal Government';
         } else {
-            $this->update_post_meta($content_id, 'metric_sector', 'Other');
-            $organization_type = 'Federal-Other';
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+            $organization_type = 'Other Federal';
         }
 
         $this->update_post_meta($content_id, 'ckan_unique_id', $ckan_id);
@@ -683,12 +683,13 @@ class MetricsCounter
         );
 
         if ('Y' == $RootOrganization->getIsCfo()) {
-            $this->update_post_meta($content_id, 'metric_sector', 'Federal');
-            $organization_type = 'Federal';
+            $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+            $organization_type = 'Federal Government';
         } else {
-            $this->update_post_meta($content_id, 'metric_sector', 'Other');
-            $organization_type = 'Federal-Other';
+            $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+            $organization_type = 'Other Federal';
         }
+
 
         $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
@@ -755,11 +756,11 @@ class MetricsCounter
             );
 
             if ('Y' == $RootOrganization->getIsCfo()) {
-                $this->update_post_meta($content_id, 'metric_sector', 'Federal');
-                $organization_type = 'Federal';
+                $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+                $organization_type = 'Federal Government';
             } else {
-                $this->update_post_meta($content_id, 'metric_sector', 'Other');
-                $organization_type = 'Federal-Other';
+                $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+                $organization_type = 'Other Federal';
             }
 
             $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
