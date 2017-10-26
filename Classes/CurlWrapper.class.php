@@ -48,6 +48,8 @@ class CurlWrapper{
         curl_setopt($ch, CURLINFO_HEADER_OUT, true);
         // Attempt to retrieve the modification date of the remote document.
         curl_setopt($ch, CURLOPT_FILETIME, true);
+        // Follow redirects
+        curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
 
         return $ch;
     }
@@ -61,7 +63,7 @@ class CurlWrapper{
         return array(
             'Date: ' . $date->format('D, d M Y H:i:s') . ' GMT', // RFC 1123
             'Accept-Charset: utf-8',
-            'Accept-Encoding: gzip'
+            'Accept-Encoding: none'
         );
     }
 
@@ -128,7 +130,7 @@ class CurlWrapper{
     )
     {
         if ('http' != substr($url, 0, 4)) {
-            $url = 'http:' . $url;
+            $url = 'https:' . $url;
         }
 
         try {

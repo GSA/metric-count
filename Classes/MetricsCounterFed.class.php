@@ -7,72 +7,54 @@ require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 use \Aws\Common\Aws;
 
 /**
- * Class MetricsCounter
+ * Class MetricsCounterFed
  */
-class MetricsCounterNonFed {
-
+class MetricsCounterFed
+{
   /**
    * cURL handler
-   *
    * @var CurlWrapper
    */
   private $curl;
-
-  /**
-   * @var string
-   */
-  private $idm_json_url = '';
-
   /**
    * @var mixed|string
    */
   private $ckanUrl = '';
-
   /**
    * @var mixed|string
    */
   private $ckanApiUrl = '';
-
   /**
    * @var int
    */
   private $stats = 0;
-
   /**
    * @var int
    */
   private $statsByMonth = 0;
-
   /**
    * @var array
    */
-  private $results = [];
-
+  private $results = array();
   /**
    * @var WP_DB
    */
   private $wpdb;
-
   /**
    * @var array
    */
-  private $counts = [];
+  private $counts = array();
 
   /**
    *
    */
-  function __construct() {
-    $this->idm_json_url = 'http://catalog.data.gov/api/3/action/organization_list?all_fields=true';
-
+  function __construct()
+  {
     $this->ckanUrl = get_option('ckan_access_pt') ?: '//catalog.data.gov/';
-    $this->ckanUrl = str_replace(['http:', 'https:'], ['', ''], $this->ckanUrl);
+    $this->ckanUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanUrl);
 
     $this->ckanApiUrl = get_option('ckan_api_endpoint') ?: '//catalog.data.gov/';
-    $this->ckanApiUrl = str_replace(['http:', 'https:'], [
-      '',
-      '',
-    ], $this->ckanApiUrl);
-
+    $this->ckanApiUrl = str_replace(array('http:', 'https:'), array('', ''), $this->ckanApiUrl);
 
     global $wpdb;
     $this->wpdb = $wpdb;
@@ -83,25 +65,49 @@ class MetricsCounterNonFed {
   /**
    *
    */
-  public function updateMetrics() {
-    //    Get latest taxonomies from http://idm.data.gov/fed_agency.json
-    $AllCategories = $this->ckan_metric_get_organizations();
+  public function updateMetrics()
+  {
+    $taxonomies = $this->ckan_metric_get_taxonomies();
+
+    //    Create taxonomy families, with parent taxonomy and sub-taxonomies (children)
+    $TaxonomiesTree = $this->ckan_metric_convert_structure($taxonomies);
+
+    $FederalOrganizationTree = $TaxonomiesTree->getVocabularyTree('Federal Organization');
 
     /** @var MetricsTaxonomy $RootOrganization */
-    foreach ($AllCategories as $OneOrganization) {
+    foreach ($FederalOrganizationTree as $RootOrganization) {
       //        skip broken structures
+      if (!$RootOrganization->getTerm()) {
+        /**
+         * Ugly TEMPORARY hack for missing
+         * Executive Office of the President [eop-gov]
+         */
+        try {
+          $children = $RootOrganization->getTerms();
+          $firstChildTerm = trim($children[0], '(")');
+          list (, $fed, $gov) = explode('-', $firstChildTerm);
+          if (!$fed || !$gov) {
+            continue;
+          }
+          $RootOrganization->setTerm("$fed-$gov");
+          //                    echo "uglyfix: $fed-$gov<br />" . PHP_EOL;
+        } catch (Exception $ex) {
+          //                    didn't help. Skip
+          continue;
+        }
+      }
 
-      // $solr_terms = join('+OR+', $RootOrganization->getTerms());
-      $solr_terms = $OneOrganization['name'];
-      $solr_query = "organization:(({$solr_terms}))";
+      $solr_terms = join('+OR+', $RootOrganization->getTerms());
+      $solr_query = "organization:({$solr_terms})";
 
       /**
        * Collect statistics and create data for ROOT organization
        */
+
       $parent_nid = $this->create_metric_content(
-        $OneOrganization['organization_type'],
-        $OneOrganization['title'],
-        $OneOrganization['name'],
+        $RootOrganization->getIsCfo(),
+        $RootOrganization->getTitle(),
+        $RootOrganization->getTerm(),
         $solr_query,
         0,
         1,
@@ -114,7 +120,7 @@ class MetricsCounterNonFed {
        * without publisher!
        */
       $this->create_metric_content_department_level_without_publisher(
-        $OneOrganization,
+        $RootOrganization,
         $parent_nid
       );
 
@@ -122,9 +128,30 @@ class MetricsCounterNonFed {
        * Get publishers by organization
        */
       $this->create_metric_content_by_publishers(
-        $OneOrganization,
+        $RootOrganization,
         $parent_nid
       );
+
+      /**
+       * Collect statistics and create data for SUB organizations of current $RootOrganization
+       */
+      $SubOrganizations = $RootOrganization->getChildren();
+      if ($SubOrganizations) {
+        /** @var MetricsTaxonomy $Organization */
+        foreach ($SubOrganizations as $Organization) {
+          $this->create_metric_content(
+            $Organization->getIsCfo(),
+            $Organization->getTitle(),
+            $Organization->getTerm(),
+            'organization:' . urlencode($Organization->getTerm()),
+            $parent_nid,
+            0,
+            $RootOrganization->getTitle(),
+            1,
+            1
+          );
+        }
+      }
 
     }
 
@@ -137,22 +164,83 @@ class MetricsCounterNonFed {
   /**
    * @return mixed
    */
-  private function ckan_metric_get_organizations() {
-    $AllCategories = [];
-    $response = $this->curl->get($this->idm_json_url);
-    $body = json_decode($response, TRUE);
-    $organizations = $body['result'];
-    foreach ($organizations as $organization) {
-      if ($organization['organization_type'] != "Federal Government") {
-        array_push($AllCategories, $organization);
-      }
-    }
+  private function ckan_metric_get_taxonomies()
+  {
 
-    return $AllCategories;
+    $response = file_get_contents(WP_CONTENT_DIR . '/themes/roots-nextdatagov/assets/Json/fed_agency.json');
+    $body = json_decode($response, true);
+    $taxonomies = $body['taxonomies'];
+    return $taxonomies;
   }
 
   /**
-   * @param        $category
+   * @param $taxonomies
+   *
+   * @return MetricsTaxonomiesTree
+   */
+  private function ckan_metric_convert_structure($taxonomies)
+  {
+    $Taxonomies = new MetricsTaxonomiesTree();
+
+    foreach ($taxonomies as $taxonomy) {
+      $taxonomy = $taxonomy['taxonomy'];
+
+      //        ignore bad ones
+      if (strlen($taxonomy['unique id']) == 0) {
+        continue;
+      }
+
+      //        Empty Federal Agency = illegal
+      if (!$taxonomy['Federal Agency']) {
+        continue;
+      }
+
+      //        ignore 3rd level ones
+      if ($taxonomy['unique id'] != $taxonomy['term']) {
+        // continue;
+      }
+
+      //        Make sure we got $return[$sector], ex. $return['Federal Organization']
+      if (!isset($return[$taxonomy['vocabulary']])) {
+        $return[$taxonomy['vocabulary']] = array();
+      }
+
+      $RootAgency = $Taxonomies->getRootAgency($taxonomy['Federal Agency'], $taxonomy['vocabulary']);
+
+      if (!($RootAgency)) {
+        //            create root agency if doesn't exist yet
+        $RootAgency = new MetricsTaxonomy($taxonomy['Federal Agency']);
+        $RootAgency->setIsRoot(true);
+      }
+
+      //        This is for third level agency
+      if ($taxonomy['unique id'] != $taxonomy['term']) {
+        $Agency = new MetricsTaxonomy($taxonomy['term']);
+        $Agency->setTerm($taxonomy['unique id']);
+        $Agency->setIsCfo($taxonomy['is_cfo']);
+        $RootAgency->addChild($Agency);
+      } else if (strlen($taxonomy['Sub Agency']) != 0) {
+        //        This is sub-agency
+        $Agency = new MetricsTaxonomy($taxonomy['Sub Agency']);
+        $Agency->setTerm($taxonomy['unique id']);
+        $Agency->setIsCfo($taxonomy['is_cfo']);
+        $RootAgency->addChild($Agency);
+      } else {
+        //        ELSE this is ROOT agency
+        $RootAgency->setTerm($taxonomy['unique id']);
+        $RootAgency->setIsCfo($taxonomy['is_cfo']);
+      }
+
+      //        updating the tree
+      $Taxonomies->updateRootAgency($RootAgency, $taxonomy['vocabulary']);
+    }
+
+
+    return $Taxonomies;
+  }
+
+  /**
+   * @param        $cfo
    * @param        $title
    * @param        $ckan_id
    * @param        $organizations
@@ -165,7 +253,7 @@ class MetricsCounterNonFed {
    * @return mixed
    */
   private function create_metric_content(
-    $category,
+    $cfo,
     $title,
     $ckan_id,
     $organizations,
@@ -174,15 +262,15 @@ class MetricsCounterNonFed {
     $parent_name = '',
     $sub_agency = 0,
     $export = 0
-  ) {
+  )
+  {
+
     if (strlen($ckan_id) != 0) {
       $url = $this->ckanApiUrl . "api/3/action/package_search?fq=($organizations)+AND+dataset_type:dataset&rows=1&sort=metadata_modified+desc";
 
       $this->stats++;
-
       $response = $this->curl->get($url);
-      $body = json_decode($response, TRUE);
-
+      $body = json_decode($response, true);
       $count = $body['result']['count'];
 
       if ($count) {
@@ -192,19 +280,16 @@ class MetricsCounterNonFed {
         $last_entry = substr($last_entry, 0, 10);
         //        2013-12-12
 
-      }
-      else {
+      } else {
         $last_entry = '1970-01-01';
       }
-    }
-    else {
+    } else {
       $count = 0;
     }
 
     $metric_sync_timestamp = time();
 
-    if (!$sub_agency) {
-      // && $cfo == 'Y'
+    if (!$sub_agency && $cfo == 'Y') {
       //get list of last 12 months
       $month = date('m');
 
@@ -215,11 +300,11 @@ class MetricsCounterNonFed {
 
       $oneYearAgo = date('Y-m-d', $startDate);
 
-      while (TRUE) {
-        $months[] = [
+      while (true) {
+        $months[] = array(
           'month' => date('m', $startDate),
-          'year' => date('Y', $startDate),
-        ];
+          'year' => date('Y', $startDate)
+        );
 
         if ($tmp == date('mY', $startDate)) {
           break;
@@ -228,8 +313,8 @@ class MetricsCounterNonFed {
         $startDate = mktime(0, 0, 0, date('m', $startDate) + 1, 15, date('Y', $startDate));
       }
 
-      $dataset_count = [];
-      $dataset_range = [];
+      $dataset_count = array();
+      $dataset_range = array();
 
       $i = 1;
 
@@ -245,7 +330,7 @@ class MetricsCounterNonFed {
         $url = $this->ckanApiUrl . "api/3/action/package_search?fq=({$organizations})+AND+dataset_type:dataset+AND+metadata_modified:{$range}&rows=0";
         $this->statsByMonth++;
         $response = $this->curl->get($url);
-        $body = json_decode($response, TRUE);
+        $body = json_decode($response, true);
 
         $dataset_count[$i] = $body['result']['count'];
         $dataset_range[$i] = $range;
@@ -262,18 +347,18 @@ class MetricsCounterNonFed {
 
       $this->statsByMonth++;
       $response = $this->curl->get($url);
-      $body = json_decode($response, TRUE);
+      $body = json_decode($response, true);
 
       $lastYearCount = $body['result']['count'];
       $lastYearRange = $range;
     }
 
     //        create a new agency in DB, if not found yet
-    $my_post = [
+    $my_post = array(
       'post_title' => $title,
       'post_status' => 'publish',
-      'post_type' => 'metric_new',
-    ];
+      'post_type' => 'metric_new'
+    );
 
     $content_id = wp_insert_post($my_post);
 
@@ -282,8 +367,7 @@ class MetricsCounterNonFed {
 
     $this->update_post_meta($content_id, 'metric_count', $count);
 
-    if (!$sub_agency) {
-      // && $cfo == 'Y'
+    if (!$sub_agency && $cfo == 'Y') {
       for ($i = 1; $i < 13; $i++) {
         $this->update_post_meta($content_id, 'month_' . $i . '_dataset_count', $dataset_count[$i]);
       }
@@ -306,14 +390,12 @@ class MetricsCounterNonFed {
 
     }
 
-    if ($category == "Cooperative ") {
-      $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-    }
-    elseif ($category == "Other") {
-      $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
-    }
-    else {
-      $this->update_post_meta($content_id, 'metric_sector', $category);
+    if ($cfo == 'Y') {
+      $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+      $organization_type = 'Federal Government';
+    } else {
+      $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+      $organization_type = 'Other Federal';
     }
 
     $this->update_post_meta($content_id, 'ckan_unique_id', $ckan_id);
@@ -329,8 +411,7 @@ class MetricsCounterNonFed {
     if (!$sub_agency) {
       $this->update_post_meta($content_id, 'is_root_organization', 1);
       $this->counts[trim($title)] = $count;
-    }
-    else {
+    } else {
       $this->update_post_meta($content_id, 'is_sub_organization', 1);
     }
 
@@ -342,29 +423,17 @@ class MetricsCounterNonFed {
       $this->update_post_meta($content_id, 'parent_agency', 1);
     }
 
-    $flag = FALSE;
+    $flag = false;
     if ($count > 0) {
       if ($export != 0) {
-        $this->results[] = [
-          $parent_name,
-          $title,
-          $category,
-          $count,
-          $last_entry,
-        ];
+        $this->results[] = array($parent_name, $title, $organization_type, $count, $last_entry);
       }
 
-      if ($parent_node == 0 && $flag == FALSE) {
+      if ($parent_node == 0 && $flag == false) {
         $parent_name = $title;
         $title = '';
 
-        $this->results[] = [
-          $parent_name,
-          $title,
-          $category,
-          $count,
-          $last_entry,
-        ];
+        $this->results[] = array($parent_name, $title, $organization_type, $count, $last_entry);
       }
     }
 
@@ -379,7 +448,8 @@ class MetricsCounterNonFed {
    * @param $meta_key
    * @param $meta_value
    */
-  private function update_post_meta($post_id, $meta_key, $meta_value) {
+  private function update_post_meta($post_id, $meta_key, $meta_value)
+  {
     //        if (defined('DELETE_DUPLICATE_META') && DELETE_DUPLICATE_META) {
     //            delete_post_meta($post_id, $meta_key);
     //        }
@@ -390,34 +460,35 @@ class MetricsCounterNonFed {
    * @param MetricsTaxonomy $RootOrganization
    * @param                 $parent_nid
    */
-  private function create_metric_content_department_level_without_publisher($RootOrganization, $parent_nid) {
+  private function create_metric_content_department_level_without_publisher($RootOrganization, $parent_nid)
+  {
     $publisherTitle = '    Department/Agency level/No publisher';
 
-    // https://catalog.data.gov/api/3/action/package_search?q=organization:(gsa-gov)+AND+type:dataset+AND+-extras_publisher:*&sort=metadata_modified+desc&rows=1
+    //        https://catalog.data.gov/api/3/action/package_search?q=organization:(gsa-gov)+AND+type:dataset+AND+-extras_publisher:*&sort=metadata_modified+desc&rows=1
     $ckan_organization = 'organization:' . urlencode(
-        $RootOrganization['name']
+        $RootOrganization->getTerm()
       ) . '+AND+type:dataset+AND+-extras_publisher:*';
     $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&sort=metadata_modified+desc&rows=1";
 
     $this->stats++;
 
     $response = $this->curl->get($url);
-    $body = json_decode($response, TRUE);
+    $body = json_decode($response, true);
 
     if (!isset($body['result']['count']) || !($count = $body['result']['count'])) {
       return;
     }
 
     //        skip if it would be the one sub-agency
-    if ($count == $this->counts[trim($RootOrganization['title'])]) {
+    if ($count == $this->counts[trim($RootOrganization->getTitle())]) {
       return;
     }
 
-    $my_post = [
+    $my_post = array(
       'post_title' => $publisherTitle,
       'post_status' => 'publish',
-      'post_type' => 'metric_new',
-    ];
+      'post_type' => 'metric_new'
+    );
 
     $content_id = wp_insert_post($my_post);
 
@@ -432,16 +503,14 @@ class MetricsCounterNonFed {
       $this->ckanUrl . "dataset?q={$ckan_organization}"
     );
 
-    $category = $RootOrganization['organization_type'];
-    if ($category == "Cooperative ") {
-      $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
+    if ('Y' == $RootOrganization->getIsCfo()) {
+      $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+      $organization_type = 'Federal Government';
+    } else {
+      $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+      $organization_type = 'Other Federal';
     }
-    elseif ($category == "Other") {
-      $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
-    }
-    else {
-      $this->update_post_meta($content_id, 'metric_sector', $category);
-    }
+
 
     $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
@@ -456,13 +525,7 @@ class MetricsCounterNonFed {
       $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
     }
 
-    $this->results[] = [
-      $RootOrganization['title'],
-      trim($publisherTitle),
-      $category,
-      $count,
-      $last_entry,
-    ];
+    $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $organization_type, $count, $last_entry);
   }
 
   /**
@@ -471,14 +534,16 @@ class MetricsCounterNonFed {
    *
    * @return int
    */
-  private function create_metric_content_by_publishers($RootOrganization, $parent_nid) {
+  private function create_metric_content_by_publishers($RootOrganization, $parent_nid)
+  {
     //        http://catalog.data.gov/api/action/package_search?q=organization:treasury-gov+AND+type:dataset&rows=0&facet.field=publisher
-    $ckan_organization = 'organization:' . urlencode($RootOrganization['name']) . '+AND+type:dataset';
+    $ckan_organization = 'organization:' . urlencode($RootOrganization->getTerm()) . '+AND+type:dataset';
     $url = $this->ckanApiUrl . "api/3/action/package_search?q={$ckan_organization}&rows=0&facet.field=[%22publisher%22]&facet.limit=200";
+
     $this->stats++;
 
     $response = $this->curl->get($url);
-    $body = json_decode($response, TRUE);
+    $body = json_decode($response, true);
 
     if (!isset($body['result']['facets']['publisher'])) {
       return;
@@ -492,11 +557,11 @@ class MetricsCounterNonFed {
     ksort($publishers);
 
     foreach ($publishers as $publisherTitle => $count) {
-      $my_post = [
+      $my_post = array(
         'post_title' => $publisherTitle,
         'post_status' => 'publish',
-        'post_type' => 'metric_new',
-      ];
+        'post_type' => 'metric_new'
+      );
 
       $content_id = wp_insert_post($my_post);
 
@@ -511,32 +576,24 @@ class MetricsCounterNonFed {
         $this->ckanUrl . "dataset?q={$ckan_organization}&publisher=" . urlencode($publisherTitle)
       );
 
-      $category = $RootOrganization['organization_type'];
-
-      if ($category == "Cooperative ") {
-        $this->update_post_meta($content_id, 'metric_sector', 'Cooperative');
-      }
-      elseif ($category == "Other") {
-        $this->update_post_meta($content_id, 'metric_sector', 'Other Non-Federal');
-      }
-      else {
-        $this->update_post_meta($content_id, 'metric_sector', $category);
+      if ('Y' == $RootOrganization->getIsCfo()) {
+        $this->update_post_meta($content_id, 'metric_sector', 'Federal Government');
+        $organization_type = 'Federal Government';
+      } else {
+        $this->update_post_meta($content_id, 'metric_sector', 'Other Federal');
+        $organization_type = 'Other Federal';
       }
 
       $this->update_post_meta($content_id, 'parent_organization', $parent_nid);
 
       //                http://catalog.data.gov/api/action/package_search?q=type:dataset+AND+extras_publisher:United+States+Mint.+Sales+and+Marketing+%28SAM%29+Department&sort=metadata_modified+desc&rows=1
-
-      $apiPublisherTitle = str_replace(['/', '%2F'], [
-        '\/',
-        '%5C%2F',
-      ], urlencode($publisherTitle));
+      $apiPublisherTitle = str_replace(array('/', '%2F'), array('\/', '%5C%2F'), urlencode($publisherTitle));
       $url = $this->ckanApiUrl . "api/action/package_search?q={$ckan_organization}+AND+extras_publisher:" . $apiPublisherTitle . "&sort=metadata_modified+desc&rows=1";
 
       $this->stats++;
 
       $response = $this->curl->get($url);
-      $body = json_decode($response, TRUE);
+      $body = json_decode($response, true);
 
       $last_entry = '-';
       if (isset($body['result']) && isset($body['result']['results'])) {
@@ -549,34 +606,23 @@ class MetricsCounterNonFed {
         $this->update_post_meta($content_id, 'metric_last_entry', $last_entry);
       }
 
-      $this->results[] = [
-        $RootOrganization['title'],
-        trim($publisherTitle),
-        $category,
-        $count,
-        $last_entry,
-      ];
+      $this->results[] = array($RootOrganization->getTitle(), trim($publisherTitle), $organization_type, $count, $last_entry);
     }
 
     return;
   }
 
-
   /**
    *
    */
-  private function write_metrics_csv_and_xls() {
+  private function write_metrics_csv_and_xls()
+  {
     asort($this->results);
 
     $upload_dir = wp_upload_dir();
 
-    $csvFilenameNonFed = 'non-federal-agency-participation.csv';
-    $csvFilenameFed = 'federal-agency-participation.csv';
-    $csvAgencyParticipation = 'agency-participation.csv';
-    $csvPath = $upload_dir['basedir'] . '/' . $csvFilenameNonFed;
-    $csvPathFed = $upload_dir['basedir'] . '/' . $csvFilenameFed;
-    $csvPathAgencyParticipation = $upload_dir['basedir'] . '/' . $csvAgencyParticipation;
-
+    $csvFilename = 'federal-agency-participation.csv';
+    $csvPath = $upload_dir['basedir'] . '/' . $csvFilename;
     @chmod($csvPath, 0666);
     if (file_exists($csvPath) && !is_writable($csvPath)) {
       die('could not write ' . $csvPath);
@@ -585,23 +631,16 @@ class MetricsCounterNonFed {
     //    Write CSV result file
     $fp_csv = fopen($csvPath, 'w');
 
-    if ($fp_csv == FALSE) {
+    if ($fp_csv == false) {
       die("unable to create file");
     }
 
-    fputcsv($fp_csv, [
-      'Agency Name',
-      'Sub-Agency/Publisher',
-      'Organization Type',
-      'Datasets',
-      'Last Entry',
-    ]);
+    fputcsv($fp_csv, array('Agency Name', 'Sub-Agency/Publisher', 'Organization Type', 'Datasets', 'Last Entry'));
 
     foreach ($this->results as $record) {
       fputcsv($fp_csv, $record);
     }
     fclose($fp_csv);
-
 
     @chmod($csvPath, 0666);
 
@@ -609,37 +648,8 @@ class MetricsCounterNonFed {
       die('could not write ' . $csvPath);
     }
 
-    $this->upload_to_s3($csvPath, $csvFilenameNonFed);
-    // This function combines two csv files. Fed and Nonfed Agency Participation csv
-    function joinFiles(array $files, $result) {
-      if (!is_array($files)) {
-        throw new Exception('`$files` must be an array');
-      }
-      $notFirstFile = FALSE;
-      $wH = fopen($result, "w+");
-      foreach ($files as $file) {
-        $firstLine = TRUE;
-        $fh = fopen($file, "r");
-        while (!feof($fh)) {
-          if ($notFirstFile == TRUE && $firstLine == TRUE) {
-            $firstLine = FALSE;
-            fgets($fh);
-          }
-          else {
-            fwrite($wH, fgets($fh));
-          }
-        }
-        fclose($fh);
-        unset($fh);
-        $notFirstFile = TRUE;
-      }
-      fclose($wH);
-      unset($wH);
-    }
+    $this->upload_to_s3($csvPath, $csvFilename);
 
-    joinFiles([$csvPathFed, $csvPath], $csvPathAgencyParticipation);
-
-    $this->upload_to_s3($csvPathAgencyParticipation, $csvAgencyParticipation);
 
     // Instantiate a new PHPExcel object
     $objPHPExcel = new PHPExcel();
@@ -649,22 +659,17 @@ class MetricsCounterNonFed {
     $row = 1;
 
     $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, 'Agency Name');
-    $objPHPExcel->getActiveSheet()
-      ->SetCellValue('B' . $row, 'Sub-Agency/Publisher');
-    $objPHPExcel->getActiveSheet()
-      ->SetCellValue('C' . $row, 'Organization Type');
+    $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, 'Sub-Agency/Publisher');
+    $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, 'Organization Type');
     $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, 'Datasets');
     $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, 'Last Entry');
     $row++;
 
     foreach ($this->results as $record) {
       if ($record) {
-        $objPHPExcel->getActiveSheet()
-          ->SetCellValue('A' . $row, trim($record[0]));
-        $objPHPExcel->getActiveSheet()
-          ->SetCellValue('B' . $row, trim($record[1]));
-        $objPHPExcel->getActiveSheet()
-          ->SetCellValue('C' . $row, trim($record[2]));
+        $objPHPExcel->getActiveSheet()->SetCellValue('A' . $row, trim($record[0]));
+        $objPHPExcel->getActiveSheet()->SetCellValue('B' . $row, trim($record[1]));
+        $objPHPExcel->getActiveSheet()->SetCellValue('C' . $row, trim($record[2]));
         $objPHPExcel->getActiveSheet()->SetCellValue('D' . $row, $record[3]);
         $objPHPExcel->getActiveSheet()->SetCellValue('E' . $row, $record[4]);
         $row++;
@@ -673,7 +678,7 @@ class MetricsCounterNonFed {
 
     $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcel, 'Excel2007');
 
-    $xlsFilename = 'non-federal-agency-participation.xlsx';
+    $xlsFilename = 'federal-agency-participation.xlsx';
     $xlsPath = $upload_dir['basedir'] . '/' . $xlsFilename;
     @chmod($xlsPath, 0666);
     if (file_exists($xlsPath) && !is_writable($xlsPath)) {
@@ -688,36 +693,6 @@ class MetricsCounterNonFed {
     }
 
     $this->upload_to_s3($xlsPath, $xlsFilename);
-
-    // This here combines the Fed/NonFed xls into one file
-    $xlsFed = 'federal-agency-participation.xlsx';
-    $xlsFedPath = $upload_dir['basedir'] . '/' . $xlsFed;
-    $xlsNonFed = $xlsFilename;
-    $xlsNonFedPath = $xlsPath;
-    $xlsAgencyParticipation = 'agency-participation.xlsx';
-    $xlsAgencyParticipationPath = $upload_dir['basedir'] . '/' . $xlsAgencyParticipation;
-
-    $objPHPExcelFed = PHPExcel_IOFactory::load($xlsFedPath);
-    $objPHPExcelNonFed = PHPExcel_IOFactory::load($xlsNonFedPath);
-    $objPHPExcelFed->setActiveSheetIndex(0);
-    $objPHPExcelNonFed->setActiveSheetIndex(0);
-    // Find the last cell in the second spreadsheet
-    $findEndDataRow = $objPHPExcelNonFed->getActiveSheet()->getHighestRow();
-    $findEndDataColumn = $objPHPExcelNonFed->getActiveSheet()
-      ->getHighestColumn();
-    $findEndData = $findEndDataColumn . $findEndDataRow;
-    // Read all the data from second spreadsheet to a normal PHP array skipping the headers in row 1
-    $beeData = $objPHPExcelNonFed->getActiveSheet()
-      ->rangeToArray('A2:' . $findEndData);
-    // Identify the row in the first spreadsheet where we want to start adding merged bee data without overwriting any bird data
-    $appendStartRow = $objPHPExcelFed->getActiveSheet()->getHighestRow() + 1;
-    // Add bee data from the PHP array into the bird data
-    $objPHPExcelFed->getActiveSheet()
-      ->fromArray($beeData, NULL, 'A' . $appendStartRow);
-    $objWriter = PHPExcel_IOFactory::createWriter($objPHPExcelFed, "Excel2007");
-    $objWriter->save($xlsAgencyParticipationPath);
-
-    $this->upload_to_s3($xlsAgencyParticipationPath, $xlsAgencyParticipation);
   }
 
   /**
@@ -725,14 +700,15 @@ class MetricsCounterNonFed {
    * @param $to_s3_path
    * @param string $acl
    */
-  private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read') {
+  private function upload_to_s3($from_local_path, $to_s3_path, $acl = 'public-read')
+  {
     if (WP_ENV !== 'production') {
       return;
     }
     // Create a service locator using a configuration file
-    $aws = Aws::factory([
-      'region' => 'us-east-1',
-    ]);
+    $aws = Aws::factory(array(
+      'region' => 'us-east-1'
+    ));
 
     // Get client instances from the service locator by name
     $s3 = $aws->get('s3');
@@ -765,4 +741,5 @@ class MetricsCounterNonFed {
       return;
     }
   }
+
 }
