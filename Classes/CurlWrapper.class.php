@@ -49,7 +49,7 @@ class CurlWrapper{
         // Attempt to retrieve the modification date of the remote document.
         curl_setopt($ch, CURLOPT_FILETIME, true);
         // Follow redirects
-        curl_setopt($this->ch, CURLOPT_FOLLOWLOCATION, true);
+        curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
 
         return $ch;
     }
