@@ -7,7 +7,7 @@ require_once __DIR__ . '/MetricsTaxonomiesTree.class.php';
 use \Aws\Common\Aws;
 
 /**
- * Class MetricsCounter
+ * Class MetricsCounterNonFed
  */
 class MetricsCounterNonFed {
 
